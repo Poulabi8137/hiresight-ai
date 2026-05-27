@@ -21,6 +21,7 @@ import { scoreCandidate } from "@/lib/ai/scoring";
 import { useHireSightStore } from "@/lib/store";
 import { initials } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/animated-counter";
+import { PremiumTiltCard } from "@/components/premium-tilt-card";
 import { VideoInterviewPlayer } from "@/components/video-interview-player";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ const stages = ["applied", "screening", "shortlisted", "interview", "offer"] as 
 export function RecruiterWorkspace() {
   const { selectedCandidateId, setSelectedCandidateId } = useHireSightStore();
   const [fullscreen, setFullscreen] = useState(false);
+  const [decisionState, setDecisionState] = useState<"idle" | "shortlisted" | "noted">("idle");
   const selected = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? candidates[0];
   const job = jobs[0];
   const breakdown = scoreCandidate(selected, job);
@@ -158,54 +160,70 @@ export function RecruiterWorkspace() {
             >
               <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
                 <VideoInterviewPlayer
-                  src={selected.videoUrl}
+                  src={selected.videoUrl ?? "/demo-videos/strong-ai-interview.mp4"}
                   candidateName={selected.name}
                   candidateInitials={initials(selected.name)}
                   className="min-h-[320px] lg:min-h-[520px]"
                   onCinemaMode={() => setFullscreen(true)}
                 />
 
-                <div className="flex flex-col justify-between border-t border-white/10 p-6 sm:p-8 lg:border-l lg:border-t-0">
-                  <div>
-                    <p className="text-sm text-white/50">{selected.location}</p>
-                    <h2 className="font-display mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{selected.name}</h2>
-                    <p className="mt-1 text-white/65">{selected.title}</p>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={selected.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -16 }}
+                    transition={{ duration: 0.35 }}
+                    className="flex flex-col justify-between border-t border-white/10 p-6 sm:p-8 lg:border-l lg:border-t-0"
+                  >
+                    <div>
+                      <p className="text-sm text-white/50">{selected.location}</p>
+                      <h2 className="font-display mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{selected.name}</h2>
+                      <p className="mt-1 text-white/65">{selected.title}</p>
 
-                    <div className="mt-6 flex items-center gap-5">
-                      <MatchRing score={breakdown.score} />
-                      <p className="text-sm leading-7 text-white/72">{breakdown.summary}</p>
+                      <div className="mt-6 flex items-center gap-5">
+                        <MatchRing score={breakdown.score} />
+                        <p className="text-sm leading-7 text-white/72">{breakdown.summary}</p>
+                      </div>
+
+                      <div className="mt-8 space-y-4">
+                        <Signal label="Skill overlap" value={breakdown.skillScore} icon={Gauge} inverted />
+                        <Signal label="Experience relevance" value={breakdown.experienceScore} icon={FileText} inverted />
+                        <Signal label="Video signal strength" value={breakdown.signalScore} icon={ScanFace} inverted />
+                      </div>
                     </div>
 
-                    <div className="mt-8 space-y-4">
-                      <Signal label="Skill overlap" value={breakdown.skillScore} icon={Gauge} inverted />
-                      <Signal label="Experience relevance" value={breakdown.experienceScore} icon={FileText} inverted />
-                      <Signal label="Video signal strength" value={breakdown.signalScore} icon={ScanFace} inverted />
-                    </div>
-                  </div>
-
-                  <div className="mt-8">
-                    <div className="flex flex-wrap gap-2">
-                      {selected.skills.map((skill) => (
-                        <span
-                          key={skill}
-                          className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-xs text-white/78"
+                    <div className="mt-8">
+                      <div className="flex flex-wrap gap-2">
+                        {selected.skills.map((skill) => (
+                          <span
+                            key={skill}
+                            className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-xs text-white/78"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="mt-6 grid grid-cols-2 gap-3">
+                        <Button
+                          className={`bg-teal-400 text-slate-950 hover:bg-teal-300 ${decisionState === "shortlisted" ? "animate-pulse-glow" : ""}`}
+                          onClick={() => setDecisionState("shortlisted")}
                         >
-                          {skill}
-                        </span>
-                      ))}
+                          <CheckCircle2 className="h-4 w-4" />
+                          {decisionState === "shortlisted" ? "Shortlisted" : "Shortlist"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="border-white/15 bg-white/[0.06] text-white hover:bg-white/10"
+                          onClick={() => setDecisionState("noted")}
+                        >
+                          <MessageSquareText className="h-4 w-4" />
+                          {decisionState === "noted" ? "Note saved" : "Add note"}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="mt-6 grid grid-cols-2 gap-3">
-                      <Button className="bg-teal-400 text-slate-950 hover:bg-teal-300">
-                        <CheckCircle2 className="h-4 w-4" />
-                        Shortlist
-                      </Button>
-                      <Button variant="outline" className="border-white/15 bg-white/[0.06] text-white hover:bg-white/10">
-                        <MessageSquareText className="h-4 w-4" />
-                        Add note
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                  </motion.div>
+                </AnimatePresence>
               </div>
             </motion.div>
 
@@ -262,28 +280,34 @@ export function RecruiterWorkspace() {
                 </div>
               </div>
 
-              <div className="glass relative overflow-hidden rounded-2xl p-6">
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-400 via-white to-orange-400" />
-                <MessageSquareText className="h-6 w-6 text-primary" />
-                <h2 className="heading-display mt-4 text-2xl">AI recruiter brief</h2>
-                <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                  Prioritize Marcus for systems depth, Ava for product motion polish, and Zoya for customer-facing storytelling.
-                  Review communication cadence before panel scheduling.
-                </p>
-                <div className="mt-5 space-y-2">
-                  {["Ask about production ownership", "Compare async communication", "Review stakeholder examples"].map(
-                    (item) => (
-                      <div
-                        key={item}
-                        className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/60 px-3 py-2.5 text-sm"
-                      >
-                        <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-                        {item}
-                      </div>
-                    )
-                  )}
+              <PremiumTiltCard className="h-full">
+                <div className="glass relative overflow-hidden rounded-2xl p-6">
+                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-400 via-white to-orange-400" />
+                  <MessageSquareText className="h-6 w-6 text-primary" />
+                  <h2 className="heading-display mt-4 text-2xl">AI recruiter brief</h2>
+                  <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                    Prioritize Marcus for systems depth, Ava for product motion polish, and Zoya for customer-facing storytelling.
+                    Review communication cadence before panel scheduling.
+                  </p>
+                  <div className="mt-5 space-y-2">
+                    {["Ask about production ownership", "Compare async communication", "Review stakeholder examples"].map(
+                      (item, index) => (
+                        <motion.div
+                          key={item}
+                          initial={{ opacity: 0, x: 18 }}
+                          whileInView={{ opacity: 1, x: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ delay: index * 0.06 }}
+                          className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/60 px-3 py-2.5 text-sm"
+                        >
+                          <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+                          {item}
+                        </motion.div>
+                      )
+                    )}
+                  </div>
                 </div>
-              </div>
+              </PremiumTiltCard>
             </div>
           </section>
         </div>

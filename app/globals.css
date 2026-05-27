@@ -85,7 +85,7 @@
   }
 
   .glass {
-    @apply border border-white/25 bg-white/72 shadow-panel backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.06];
+    @apply border border-white/25 bg-white/[0.72] shadow-panel backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.06];
   }
 
   .glass-dark {
@@ -113,6 +113,10 @@
   .heading-display {
     @apply text-balance font-semibold tracking-tight;
   }
+
+  .motion-safe-float {
+    @apply motion-safe:animate-float;
+  }
 }
 
 @layer utilities {
@@ -125,5 +129,10 @@
       0 0 0 1px rgba(255, 255, 255, 0.08),
       0 0 40px rgba(var(--glow-teal), 0.22),
       0 24px 80px rgba(2, 6, 23, 0.18);
+  }
+
+  .surface-perspective {
+    transform-style: preserve-3d;
+    perspective: 1200px;
   }
 }

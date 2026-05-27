@@ -115,22 +115,83 @@ function FloatingTiles() {
   );
 }
 
+function ParticleField() {
+  const ref = useRef<Group>(null);
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 18 }).map((_, index) => ({
+        id: index,
+        pos: [
+          (Math.random() - 0.5) * 10,
+          (Math.random() - 0.5) * 4.6,
+          -2.4 - Math.random() * 2.4
+        ] as [number, number, number],
+        scale: 0.04 + Math.random() * 0.08
+      })),
+    []
+  );
+
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    ref.current.children.forEach((child, index) => {
+      child.position.y += Math.sin(clock.elapsedTime * 0.65 + index * 0.4) * 0.0009;
+      child.position.x += Math.cos(clock.elapsedTime * 0.5 + index) * 0.0006;
+    });
+  });
+
+  return (
+    <group ref={ref}>
+      {particles.map((particle) => (
+        <mesh key={particle.id} position={particle.pos} scale={particle.scale}>
+          <sphereGeometry args={[1, 10, 10]} />
+          <meshStandardMaterial
+            color={particle.id % 3 === 0 ? "#2dd4bf" : particle.id % 3 === 1 ? "#fb923c" : "#f8fafc"}
+            emissive={particle.id % 2 ? "#2dd4bf" : "#fb923c"}
+            emissiveIntensity={0.5}
+            transparent
+            opacity={0.72}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function MeshHalo() {
+  const mesh = useRef<Mesh>(null);
+
+  useFrame(({ clock }) => {
+    if (!mesh.current) return;
+    mesh.current.rotation.z = clock.elapsedTime * 0.06;
+    mesh.current.rotation.y = clock.elapsedTime * 0.1;
+  });
+
+  return (
+    <mesh ref={mesh} position={[0.6, 0, -2.9]}>
+      <torusGeometry args={[3.5, 0.05, 20, 140]} />
+      <meshStandardMaterial color="#5eead4" emissive="#14b8a6" emissiveIntensity={0.45} transparent opacity={0.26} />
+    </mesh>
+  );
+}
+
 export function ImmersiveScene() {
   return (
     <div className="pointer-events-none absolute inset-0 -z-10 opacity-95">
       <Canvas
         camera={{ position: [0, 0, 7.5], fov: 45 }}
-        dpr={[1, 1.35]}
+        dpr={[1, 1.25]}
         gl={{ antialias: true, powerPreference: "high-performance", alpha: true }}
       >
         <color attach="background" args={["transparent"]} />
-        <ambientLight intensity={0.55} />
-        <directionalLight position={[4, 5, 5]} intensity={1.6} />
-        <pointLight position={[-4, 2, 3]} color="#2dd4bf" intensity={2.2} />
-        <pointLight position={[3, -2, 4]} color="#fb923c" intensity={1.8} />
+        <ambientLight intensity={0.45} />
+        <directionalLight position={[4, 5, 5]} intensity={1.45} />
+        <pointLight position={[-4, 2, 3]} color="#2dd4bf" intensity={1.9} />
+        <pointLight position={[3, -2, 4]} color="#fb923c" intensity={1.5} />
         <Suspense fallback={null}>
+          <MeshHalo />
           <TalentCore />
           <FloatingTiles />
+          <ParticleField />
         </Suspense>
       </Canvas>
     </div>

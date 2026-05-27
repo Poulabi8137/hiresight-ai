@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BriefcaseBusiness, Sparkles } from "lucide-react";
+import { PageTransition } from "@/components/page-transition";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
@@ -39,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      {children}
+      <PageTransition>{children}</PageTransition>
     </div>
   );
 }

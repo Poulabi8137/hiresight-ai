@@ -17,6 +17,7 @@ import {
   WandSparkles
 } from "lucide-react";
 import { AnimatedCounter } from "@/components/animated-counter";
+import { PremiumTiltCard } from "@/components/premium-tilt-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -51,13 +52,35 @@ const activity = [
   ["Recruiter shortlist updated", "00:27", "complete"]
 ];
 
+const workflow = [
+  {
+    step: "01",
+    title: "Candidate records cinematic intro",
+    copy: "Video-first profile and resume data are merged into one signal stack.",
+    metric: "46s avg"
+  },
+  {
+    step: "02",
+    title: "AI creates explainable score",
+    copy: "Fit is broken down by communication, skill overlap, and role evidence.",
+    metric: "94% peak"
+  },
+  {
+    step: "03",
+    title: "Recruiter takes guided decisions",
+    copy: "Shortlist, interview notes, and panel recommendations flow in one room.",
+    metric: "3.2x faster"
+  }
+];
+
 export function LandingPage() {
   return (
-    <main>
-      <section className="relative min-h-[calc(100vh-4.25rem)] overflow-hidden">
+    <main className="overflow-hidden">
+      <section className="relative min-h-[calc(100vh-4.25rem)] overflow-hidden pb-16">
         <ImmersiveScene />
         <div className="pointer-events-none absolute inset-0 -z-10 cinematic-mesh opacity-90" />
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(180deg,transparent_0%,hsl(var(--background)/0.35)_55%,hsl(var(--background))_100%)]" />
+        <div className="pointer-events-none absolute inset-0 -z-10 opacity-30 [background-image:linear-gradient(rgba(148,163,184,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.07)_1px,transparent_1px)] [background-size:56px_56px]" />
 
         <div className="container grid min-h-[calc(100vh-4.25rem)] items-center gap-12 py-12 lg:grid-cols-[0.95fr_1.05fr] lg:py-16">
           <motion.div
@@ -98,14 +121,14 @@ export function LandingPage() {
                 ["3.2x", "faster shortlist"],
                 ["Live", "video insight"]
               ].map(([value, label]) => (
-                <motion.div
+                <PremiumTiltCard
                   key={label}
-                  whileHover={{ y: -4, scale: 1.02 }}
                   className="glass rounded-xl p-4"
+                  intensity={8}
                 >
                   <p className="font-display text-2xl font-semibold">{value}</p>
                   <p className="section-kicker mt-1">{label}</p>
-                </motion.div>
+                </PremiumTiltCard>
               ))}
             </div>
           </motion.div>
@@ -214,6 +237,31 @@ export function LandingPage() {
             </div>
           </motion.div>
         </div>
+
+        <div className="container -mt-2 lg:-mt-6">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-120px" }}
+            className="grid gap-4 md:grid-cols-3"
+          >
+            {workflow.map((item, index) => (
+              <motion.div
+                key={item.step}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.08 }}
+                className="glass relative overflow-hidden rounded-2xl p-5"
+              >
+                <div className="absolute right-4 top-4 text-4xl font-semibold text-foreground/10">{item.step}</div>
+                <p className="section-kicker">{item.metric}</p>
+                <h3 className="font-display mt-3 text-xl font-semibold">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.copy}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
       </section>
 
       <section className="container py-20 lg:py-24">
@@ -236,23 +284,81 @@ export function LandingPage() {
         </div>
         <div className="grid gap-5 md:grid-cols-3">
           {features.map((feature, index) => (
-            <motion.div
+            <PremiumTiltCard
               key={feature.title}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ delay: index * 0.08 }}
-              whileHover={{ y: -8 }}
+              className="h-full"
+              intensity={7}
             >
-              <Card className="glass h-full overflow-hidden rounded-2xl p-6">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-foreground text-background shadow-glow">
-                  <feature.icon className="h-5 w-5" />
-                </div>
-                <h3 className="font-display mt-5 text-xl font-semibold">{feature.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{feature.copy}</p>
-              </Card>
-            </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ delay: index * 0.08 }}
+                whileHover={{ y: -8 }}
+              >
+                <Card className="glass h-full overflow-hidden rounded-2xl p-6">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-foreground text-background shadow-glow">
+                    <feature.icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-display mt-5 text-xl font-semibold">{feature.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">{feature.copy}</p>
+                </Card>
+              </motion.div>
+            </PremiumTiltCard>
           ))}
+        </div>
+      </section>
+
+      <section className="container pb-20">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="glass relative overflow-hidden rounded-2xl p-6 sm:p-8">
+            <div className="absolute -left-12 -top-12 h-40 w-40 rounded-full bg-teal-300/20 blur-2xl" />
+            <div className="absolute -bottom-10 right-0 h-36 w-36 rounded-full bg-orange-300/20 blur-2xl" />
+            <p className="section-kicker">Recruiter to candidate storytelling</p>
+            <h2 className="font-display mt-4 text-3xl font-semibold leading-tight sm:text-4xl">
+              Every hiring decision carries the candidate context with it.
+            </h2>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
+              The platform keeps the narrative continuous: intro clip, experience proof, role fit, and recruiter notes
+              are visible in one decision surface.
+            </p>
+            <div className="mt-8 space-y-4">
+              {[
+                ["Candidate story", 100],
+                ["AI confidence", 94],
+                ["Recruiter clarity", 91]
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <div className="mb-2 flex justify-between text-sm">
+                    <span>{label}</span>
+                    <span className="font-medium">{value}%</span>
+                  </div>
+                  <Progress value={Number(value)} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid content-start gap-4">
+            {[
+              "Live interview playback with AI cues",
+              "Deterministic score cards for hiring panels",
+              "Motion-first recruiter workspace interactions"
+            ].map((copy, index) => (
+              <motion.div
+                key={copy}
+                initial={{ opacity: 0, x: 24 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.08 }}
+                className="glass rounded-2xl p-5"
+              >
+                <div className="flex items-center gap-3">
+                  <Brain className="h-5 w-5 text-primary" />
+                  <p className="text-sm leading-6">{copy}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
 
