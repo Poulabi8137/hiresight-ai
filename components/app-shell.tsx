@@ -13,10 +13,10 @@ const nav = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen overflow-x-hidden premium-gradient">
-      <header className="sticky top-0 z-50 border-b border-border/70 bg-background/72 backdrop-blur-xl">
-        <div className="container flex h-16 items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2 font-semibold tracking-normal">
-            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-foreground text-background">
+      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/75 shadow-panel backdrop-blur-2xl">
+        <div className="container flex h-[4.25rem] items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-2.5 font-display text-base font-semibold tracking-tight">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-background shadow-glow">
               <Sparkles className="h-4 w-4" />
             </span>
             <span>HireSight AI</span>
