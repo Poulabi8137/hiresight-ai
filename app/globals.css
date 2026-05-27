@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 173 80% 34%;
+    --primary-foreground: 174 100% 97%;
+    --secondary: 225 20% 92%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 220 18% 92%;
+    --muted-foreground: 220 9% 42%;
+    --accent: 15 94% 61%;
+    --accent-foreground: 24 100% 97%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 16% 86%;
+    --input: 220 16% 86%;
+    --ring: 173 80% 34%;
+    --radius: 0.75rem;
+    --glow-teal: 45 212 191;
+    --glow-amber: 251 146 60;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
+    --card: 222 40% 9%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 40% 9%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 173 72% 45%;
+    --primary-foreground: 174 100% 8%;
+    --secondary: 224 28% 15%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 224 26% 16%;
+    --muted-foreground: 215 20% 69%;
+    --accent: 16 90% 62%;
+    --accent-foreground: 24 100% 8%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 224 22% 18%;
+    --input: 224 22% 18%;
+    --ring: 173 72% 45%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.28);
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer components {
+  .cinematic-mesh {
+    background:
+      radial-gradient(circle at 78% 18%, rgba(20, 184, 166, 0.2), transparent 28%),
+      radial-gradient(circle at 18% 72%, rgba(249, 115, 22, 0.16), transparent 30%),
+      linear-gradient(135deg, rgba(248, 250, 252, 0.96), rgba(226, 232, 240, 0.72));
+  }
+
+  .dark .cinematic-mesh {
+    background:
+      radial-gradient(circle at 78% 18%, rgba(20, 184, 166, 0.16), transparent 30%),
+      radial-gradient(circle at 18% 72%, rgba(249, 115, 22, 0.14), transparent 30%),
+      linear-gradient(135deg, rgba(2, 6, 23, 0.98), rgba(15, 23, 42, 0.94));
+  }
+
+  .glass {
+    @apply border border-white/25 bg-white/72 shadow-panel backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.06];
+  }
+
+  .glass-dark {
+    @apply border border-white/10 bg-slate-950/80 text-white shadow-glow backdrop-blur-2xl;
+  }
+
+  .premium-gradient {
+    background:
+      radial-gradient(circle at 15% 20%, rgba(20, 184, 166, 0.24), transparent 34%),
+      radial-gradient(circle at 86% 12%, rgba(244, 114, 72, 0.18), transparent 32%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(226, 232, 240, 0.45));
+  }
+
+  .dark .premium-gradient {
+    background:
+      radial-gradient(circle at 18% 18%, rgba(20, 184, 166, 0.2), transparent 34%),
+      radial-gradient(circle at 84% 12%, rgba(244, 114, 72, 0.16), transparent 31%),
+      linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.96));
+  }
+
+  .section-kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground;
+  }
+
+  .heading-display {
+    @apply text-balance font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .ring-glow {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 0 40px rgba(var(--glow-teal), 0.22),
+      0 24px 80px rgba(2, 6, 23, 0.18);
+  }
+}

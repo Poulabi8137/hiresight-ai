@@ -1,0 +1,93 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "HireSight AI" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e9]: HireSight AI
+      - navigation [ref=e10]:
+        - link "Candidate" [ref=e11] [cursor=pointer]:
+          - /url: /candidate
+        - link "Recruiter" [ref=e12] [cursor=pointer]:
+          - /url: /recruiter
+        - link "Jobs" [ref=e13] [cursor=pointer]:
+          - /url: /jobs
+        - link "Upload" [ref=e14] [cursor=pointer]:
+          - /url: /upload
+      - generic [ref=e15]:
+        - button "Toggle theme" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+        - link "Launch demo" [ref=e19] [cursor=pointer]:
+          - /url: /auth
+          - img [ref=e20]
+          - text: Launch demo
+  - main [ref=e24]:
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - generic [ref=e29]:
+          - img [ref=e30]
+          - text: Secure role-based entry
+        - heading "Sign in or sign up without mixing candidate and recruiter flows." [level=1] [ref=e39]
+        - paragraph [ref=e40]: The demo works locally today and connects to Supabase Auth when live environment keys are configured.
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - img [ref=e43]
+            - heading "Candidate video profiles" [level=2] [ref=e48]
+            - paragraph [ref=e49]: Create a portfolio, add resume details, and upload interview clips.
+          - generic [ref=e50]:
+            - img [ref=e51]
+            - heading "Recruiter workspaces" [level=2] [ref=e55]
+            - paragraph [ref=e56]: Open ranked talent lists, job pipelines, and review notes.
+      - generic [ref=e59]:
+        - generic [ref=e62]:
+          - generic [ref=e63]:
+            - img [ref=e65]
+            - heading "Candidate access" [level=2] [ref=e68]
+            - paragraph [ref=e69]: Create a dedicated workspace with role-aware defaults.
+          - generic [ref=e70]:
+            - generic [ref=e71]:
+              - img [ref=e72]
+              - generic [ref=e75]: Video profile
+            - generic [ref=e76]:
+              - img [ref=e77]
+              - generic [ref=e80]: Resume uploads
+            - generic [ref=e81]:
+              - img [ref=e82]
+              - generic [ref=e85]: AI fit insights
+        - generic [ref=e86]:
+          - generic [ref=e87]:
+            - button "Sign up" [ref=e88] [cursor=pointer]:
+              - img [ref=e89]
+              - text: Sign up
+            - button "Sign in" [ref=e92] [cursor=pointer]:
+              - img [ref=e93]
+              - text: Sign in
+          - generic [ref=e97]:
+            - button "Candidate Create account" [ref=e98] [cursor=pointer]:
+              - img [ref=e99]
+              - generic [ref=e102]: Candidate
+              - generic [ref=e103]: Create account
+            - button "Recruiter Create account" [ref=e104] [cursor=pointer]:
+              - img [ref=e105]
+              - generic [ref=e109]: Recruiter
+              - generic [ref=e110]: Create account
+          - generic [ref=e111]:
+            - generic [ref=e112]:
+              - text: Email
+              - textbox [ref=e113]
+            - generic [ref=e114]:
+              - text: Password
+              - textbox [ref=e115]
+            - button "Create candidate" [ref=e116] [cursor=pointer]:
+              - text: Create candidate
+              - img [ref=e117]
+          - generic [ref=e119]:
+            - generic [ref=e120]:
+              - img [ref=e121]
+              - text: Demo status
+            - text: Choose your role to start a polished demo session.
+          - generic [ref=e124]:
+            - link "Open candidate workspace" [ref=e125] [cursor=pointer]:
+              - /url: /candidate
+            - link "Back to showcase" [ref=e126] [cursor=pointer]:
+              - /url: /

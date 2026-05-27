@@ -1,0 +1,170 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "HireSight AI" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img [ref=e7]
+          - generic [ref=e9]: HireSight AI
+        - navigation [ref=e10]:
+          - link "Candidate" [ref=e11] [cursor=pointer]:
+            - /url: /candidate
+          - link "Recruiter" [ref=e12] [cursor=pointer]:
+            - /url: /recruiter
+          - link "Jobs" [ref=e13] [cursor=pointer]:
+            - /url: /jobs
+          - link "Upload" [ref=e14] [cursor=pointer]:
+            - /url: /upload
+        - generic [ref=e15]:
+          - button "Toggle theme" [ref=e16] [cursor=pointer]:
+            - img [ref=e17]
+          - link "Launch demo" [ref=e19] [cursor=pointer]:
+            - /url: /auth
+            - img [ref=e20]
+            - text: Launch demo
+    - main [ref=e150]:
+      - generic [ref=e152]:
+        - generic [ref=e153]:
+          - complementary [ref=e154]:
+            - generic [ref=e155]:
+              - generic [ref=e156]:
+                - img [ref=e157]
+                - text: Live talent radar
+              - heading "Recruiter command room" [level=1] [ref=e164]
+              - paragraph [ref=e165]: Review candidate presence, AI fit, interview evidence, and pipeline movement from one cinematic workspace.
+            - generic [ref=e166]:
+              - button "ML Marcus Lee Full-stack AI Engineer 77% fit Interview preview ready" [ref=e167] [cursor=pointer]:
+                - generic [ref=e168]:
+                  - generic [ref=e169]:
+                    - generic [ref=e170]: ML
+                    - generic [ref=e172]:
+                      - heading "Marcus Lee" [level=2] [ref=e173]
+                      - paragraph [ref=e174]: Full-stack AI Engineer
+                  - generic [ref=e175]:
+                    - paragraph [ref=e176]: 77%
+                    - paragraph [ref=e177]: fit
+                - generic [ref=e178]:
+                  - img [ref=e179]
+                  - text: Interview preview ready
+                  - img [ref=e181]
+              - button "AR Ava Raman Product Designer turned Frontend Engineer 66% fit Interview preview ready" [ref=e183] [cursor=pointer]:
+                - generic [ref=e184]:
+                  - generic [ref=e185]:
+                    - generic [ref=e186]: AR
+                    - generic [ref=e188]:
+                      - heading "Ava Raman" [level=2] [ref=e189]
+                      - paragraph [ref=e190]: Product Designer turned Frontend Engineer
+                  - generic [ref=e191]:
+                    - paragraph [ref=e192]: 66%
+                    - paragraph [ref=e193]: fit
+                - generic [ref=e194]:
+                  - img [ref=e195]
+                  - text: Interview preview ready
+                  - img [ref=e197]
+              - button "ZF Zoya Fernandes Customer Success Strategist 48% fit Interview preview ready" [ref=e199] [cursor=pointer]:
+                - generic [ref=e200]:
+                  - generic [ref=e201]:
+                    - generic [ref=e202]: ZF
+                    - generic [ref=e204]:
+                      - heading "Zoya Fernandes" [level=2] [ref=e205]
+                      - paragraph [ref=e206]: Customer Success Strategist
+                  - generic [ref=e207]:
+                    - paragraph [ref=e208]: 48%
+                    - paragraph [ref=e209]: fit
+                - generic [ref=e210]:
+                  - img [ref=e211]
+                  - text: Interview preview ready
+                  - img [ref=e213]
+          - generic [ref=e218]:
+            - generic [ref=e219]:
+              - generic [ref=e221]:
+                - generic [ref=e222]: INTERVIEW REVIEW
+                - generic [ref=e223]: AI transcript active
+              - button "Cinema mode" [ref=e224] [cursor=pointer]:
+                - img [ref=e225]
+                - text: Cinema mode
+            - generic [ref=e230]:
+              - generic [ref=e231]:
+                - generic [ref=e232]:
+                  - generic [ref=e233]:
+                    - paragraph [ref=e234]: Austin, TX
+                    - heading "Marcus Lee" [level=2] [ref=e235]
+                    - paragraph [ref=e236]: Full-stack AI Engineer
+                  - generic [ref=e238]:
+                    - generic [ref=e239]: 77%
+                    - generic [ref=e240]: match
+                - paragraph [ref=e241]: Marcus Lee matches 3/5 priority skills with strong video communication signals and 6 years of relevant experience.
+                - generic [ref=e242]:
+                  - generic [ref=e244]:
+                    - generic [ref=e245]:
+                      - img [ref=e246]
+                      - text: Skill overlap
+                    - generic [ref=e249]: 60%
+                  - generic [ref=e253]:
+                    - generic [ref=e254]:
+                      - img [ref=e255]
+                      - text: Experience relevance
+                    - generic [ref=e258]: 100%
+                  - generic [ref=e262]:
+                    - generic [ref=e263]:
+                      - img [ref=e264]
+                      - text: Video signal strength
+                    - generic [ref=e270]: 89%
+              - generic [ref=e273]:
+                - generic [ref=e274]:
+                  - generic [ref=e275]: Next.js
+                  - generic [ref=e276]: PostgreSQL
+                  - generic [ref=e277]: Supabase
+                  - generic [ref=e278]: LLM Apps
+                  - generic [ref=e279]: Node.js
+                - generic [ref=e280]:
+                  - button "Shortlist" [ref=e281] [cursor=pointer]:
+                    - img [ref=e282]
+                    - text: Shortlist
+                  - button "Add note" [ref=e285] [cursor=pointer]:
+                    - img [ref=e286]
+                    - text: Add note
+        - generic [ref=e288]:
+          - generic [ref=e289]:
+            - generic [ref=e290]:
+              - generic [ref=e291]:
+                - generic [ref=e292]:
+                  - img [ref=e293]
+                  - text: Hiring pipeline
+                - heading "Motion-aware pipeline states" [level=2] [ref=e297]
+              - button "Generate shortlist" [ref=e298] [cursor=pointer]:
+                - img [ref=e299]
+                - text: Generate shortlist
+            - generic [ref=e301]:
+              - paragraph [ref=e303]: applied
+              - generic [ref=e304]:
+                - paragraph [ref=e305]: screening
+                - generic [ref=e307]:
+                  - text: Zoya Fernandes
+                  - generic [ref=e308]: 81% match
+              - generic [ref=e309]:
+                - paragraph [ref=e310]: shortlisted
+                - generic [ref=e312]:
+                  - text: Marcus Lee
+                  - generic [ref=e313]: 94% match
+              - generic [ref=e314]:
+                - paragraph [ref=e315]: interview
+                - generic [ref=e317]:
+                  - text: Ava Raman
+                  - generic [ref=e318]: 92% match
+              - paragraph [ref=e320]: offer
+          - generic [ref=e321]:
+            - img [ref=e323]
+            - heading "AI recruiter brief" [level=2] [ref=e325]
+            - paragraph [ref=e326]: Prioritize Marcus for systems depth, Ava for product motion polish, and Zoya for customer-facing storytelling. The interview layer highlights communication style before the live panel stage.
+            - generic [ref=e327]:
+              - generic [ref=e328]:
+                - img [ref=e329]
+                - text: Ask about production ownership
+              - generic [ref=e331]:
+                - img [ref=e332]
+                - text: Compare async communication
+              - generic [ref=e334]:
+                - img [ref=e335]
+                - text: Review stakeholder examples
+  - alert [ref=e149]

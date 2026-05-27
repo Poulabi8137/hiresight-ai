@@ -1,0 +1,126 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "HireSight AI" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e9]: HireSight AI
+      - navigation [ref=e10]:
+        - link "Candidate" [ref=e11] [cursor=pointer]:
+          - /url: /candidate
+        - link "Recruiter" [ref=e12] [cursor=pointer]:
+          - /url: /recruiter
+        - link "Jobs" [ref=e13] [cursor=pointer]:
+          - /url: /jobs
+        - link "Upload" [ref=e14] [cursor=pointer]:
+          - /url: /upload
+      - generic [ref=e15]:
+        - button "Toggle theme" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+        - link "Launch demo" [ref=e19] [cursor=pointer]:
+          - /url: /auth
+          - img [ref=e20]
+          - text: Launch demo
+  - main [ref=e24]:
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - generic [ref=e29]:
+          - img [ref=e30]
+          - text: AI video hiring command center
+        - heading "HireSight AI" [level=1] [ref=e32]
+        - paragraph [ref=e33]: A premium 3D hiring experience where candidates present their story on video and recruiters move through AI-ranked talent with clarity, speed, and confidence.
+        - generic [ref=e34]:
+          - link "Candidate sign up" [ref=e35] [cursor=pointer]:
+            - /url: /auth?role=candidate&mode=signup
+            - img [ref=e36]
+            - text: Candidate sign up
+            - img [ref=e39]
+          - link "Recruiter sign in" [ref=e41] [cursor=pointer]:
+            - /url: /auth?role=recruiter&mode=signin
+            - img [ref=e42]
+            - text: Recruiter sign in
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - paragraph [ref=e48]: 94%
+            - paragraph [ref=e49]: top match
+          - generic [ref=e50]:
+            - paragraph [ref=e51]: 3.2x
+            - paragraph [ref=e52]: faster shortlist
+          - generic [ref=e53]:
+            - paragraph [ref=e54]: Live
+            - paragraph [ref=e55]: video insight
+      - generic [ref=e59]:
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - generic [ref=e62]: Live candidate intelligence
+            - heading "Marcus Lee" [level=2] [ref=e64]
+            - paragraph [ref=e65]: Full-stack AI Engineer
+          - generic [ref=e66]:
+            - generic [ref=e67]: 0%
+            - paragraph [ref=e68]: match
+        - generic [ref=e69]:
+          - generic [ref=e71]:
+            - generic [ref=e72]: Skill overlap
+            - generic [ref=e73]: 96%
+          - generic [ref=e77]:
+            - generic [ref=e78]: Video communication
+            - generic [ref=e79]: 88%
+          - generic [ref=e83]:
+            - generic [ref=e84]: Experience relevance
+            - generic [ref=e85]: 94%
+        - generic [ref=e88]:
+          - generic [ref=e89]:
+            - generic [ref=e91]:
+              - generic [ref=e92]: VIDEO RESUME
+              - generic [ref=e93]: 01:38
+            - img [ref=e96]
+          - generic [ref=e100]:
+            - generic [ref=e101]:
+              - generic [ref=e102]:
+                - img [ref=e103]
+                - generic [ref=e106]: Video resume parsed
+              - generic [ref=e107]: 00:14
+            - generic [ref=e108]:
+              - generic [ref=e109]:
+                - img [ref=e110]
+                - generic [ref=e113]: Communication signal scored
+              - generic [ref=e114]: 00:21
+            - generic [ref=e115]:
+              - generic [ref=e116]:
+                - img [ref=e117]
+                - generic [ref=e120]: Recruiter shortlist updated
+              - generic [ref=e121]: 00:27
+    - generic [ref=e122]:
+      - generic [ref=e123]:
+        - generic [ref=e124]:
+          - generic [ref=e125]:
+            - img [ref=e126]
+            - text: Jury-ready experience
+          - heading "Built to feel like a product, not a prototype." [level=2] [ref=e129]
+        - link "Recruiter sign up" [ref=e130] [cursor=pointer]:
+          - /url: /auth?role=recruiter&mode=signup
+          - text: Recruiter sign up
+          - img [ref=e131]
+      - generic [ref=e133]:
+        - generic [ref=e135]:
+          - img [ref=e137]
+          - heading "Cinematic candidate profiles" [level=3] [ref=e142]
+          - paragraph [ref=e143]: Video resumes, interview clips, resumes, skills, and AI summaries land in one elegant review surface.
+        - generic [ref=e145]:
+          - img [ref=e147]
+          - heading "Explainable AI ranking" [level=3] [ref=e157]
+          - paragraph [ref=e158]: "Recruiters see why someone fits: skills, experience, communication signal, and role alignment."
+        - generic [ref=e160]:
+          - img [ref=e162]
+          - heading "Role-aware workflows" [level=3] [ref=e165]
+          - paragraph [ref=e166]: Candidate and recruiter journeys stay separate with auth-ready routes and Supabase-ready policies.
+    - generic [ref=e170]:
+      - generic [ref=e171]:
+        - img [ref=e172]
+        - heading "Separate doors for every hiring role." [level=2] [ref=e176]
+        - paragraph [ref=e177]: Candidates can create profiles and upload video resumes. Recruiters can sign in, post jobs, review AI scores, and manage shortlists.
+      - generic [ref=e178]:
+        - link "Candidate sign up" [ref=e179] [cursor=pointer]:
+          - /url: /auth?role=candidate&mode=signup
+        - link "Recruiter sign in" [ref=e180] [cursor=pointer]:
+          - /url: /auth?role=recruiter&mode=signin
