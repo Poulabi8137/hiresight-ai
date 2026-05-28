@@ -338,7 +338,7 @@ export function RecruiterWorkspace() {
               </div>
               <div className="grid flex-1 overflow-hidden rounded-2xl border border-white/10 lg:grid-cols-[1fr_22rem]">
                 <video
-                  src={selected.videoUrl ?? "/demo-videos/strong-ai-interview.mp4"}
+                  src={selected.videoUrl}
                   controls
                   autoPlay
                   muted
