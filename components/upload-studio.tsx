@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   Camera,
@@ -17,18 +18,18 @@ import {
   UploadCloud
 } from "lucide-react";
 import { useHireSightStore } from "@/lib/store";
-import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
-type UploadKind = "resume" | "video_resume" | "interview";
+type UploadKind = "resume" | "video_resume" | "interview" | "avatar";
 
 const limits: Record<UploadKind, string[]> = {
   resume: ["application/pdf"],
   video_resume: ["video/mp4", "video/webm", "video/quicktime"],
-  interview: ["video/mp4", "video/webm", "video/quicktime"]
+  interview: ["video/mp4", "video/webm", "video/quicktime"],
+  avatar: ["image/png", "image/jpeg", "image/webp"]
 };
 
 const demoVideos = [
@@ -64,6 +65,7 @@ export function UploadStudio() {
   const preview = useMemo(() => {
     if (demoUrl) return demoUrl;
     if (file && file.type.startsWith("video/")) return URL.createObjectURL(file);
+    if (file && file.type.startsWith("image/")) return URL.createObjectURL(file);
     return null;
   }, [demoUrl, file]);
 
@@ -105,57 +107,45 @@ export function UploadStudio() {
   const upload = async () => {
     if (!file) return;
     setStatus("uploading");
-    setMessage("Preparing private Supabase Storage upload...");
-    for (const value of [22, 45, 68, 86]) {
-      await new Promise((resolve) => setTimeout(resolve, 180));
-      setUploadProgress(kind, value);
-    }
+    setMessage("Uploading securely to private Supabase Storage…");
+    setUploadProgress(kind, 4);
 
-    const bucket = kind === "resume" ? "resumes" : "videos";
-    let storagePath = `demo/${kind}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-    let signedUrl: string | undefined;
-    const supabase = createClient();
+    const form = new FormData();
+    form.set("kind", kind);
+    form.set("file", file);
 
-    if (supabase) {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        setStatus("error");
-        setMessage("Please sign in before uploading private candidate media.");
-        return;
-      }
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/storage/upload");
+    xhr.responseType = "json";
 
-      storagePath = `${sessionData.session.user.id}/${kind}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-      const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, file, {
-        cacheControl: "3600",
-        contentType: file.type,
-        upsert: false
-      });
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      const next = Math.max(6, Math.min(96, Math.round((event.loaded / event.total) * 96)));
+      setUploadProgress(kind, next);
+    };
 
-      if (uploadError) {
-        setStatus("error");
-        setMessage(uploadError.message);
-        return;
-      }
-
-      const { data: signedData } = await supabase.storage.from(bucket).createSignedUrl(storagePath, 60 * 30);
-      signedUrl = signedData?.signedUrl;
-    }
-
-    const response = await fetch("/api/uploads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileName: file.name, contentType: file.type, size: file.size, kind, bucket, storagePath, signedUrl })
-    });
-
-    if (!response.ok) {
+    xhr.onerror = () => {
       setStatus("error");
-      setMessage("Upload service returned an error. Check environment keys or retry locally.");
-      return;
-    }
+      setMessage("Upload failed. Check your connection and retry.");
+      setUploadProgress(kind, 0);
+    };
 
-    setUploadProgress(kind, 100);
-    setStatus("done");
-    setMessage(supabase ? "Private Supabase Storage upload complete. Metadata is linked to your session." : "Demo upload metadata stored. Connect Supabase to persist media files.");
+    xhr.onload = () => {
+      const ok = xhr.status >= 200 && xhr.status < 300;
+      if (!ok) {
+        const err = (xhr.response as any)?.error ?? "Upload service returned an error.";
+        setStatus("error");
+        setMessage(String(err));
+        setUploadProgress(kind, 0);
+        return;
+      }
+
+      setUploadProgress(kind, 100);
+      setStatus("done");
+      setMessage("Upload complete. Stored as a durable bucket/path reference with signed URLs generated on demand.");
+    };
+
+    xhr.send(form);
   };
 
   const loadDemoVideo = async (sample: (typeof demoVideos)[number]) => {
@@ -254,7 +244,8 @@ export function UploadStudio() {
             {[
               ["resume", "Resume PDF"],
               ["video_resume", "Video resume"],
-              ["interview", "Interview recording"]
+              ["interview", "Interview recording"],
+              ["avatar", "Avatar image"]
             ].map(([value, label]) => (
               <Button
                 key={value}
@@ -308,7 +299,19 @@ export function UploadStudio() {
               {cameraState === "live" || cameraState === "recording" ? (
                 <video ref={videoRef} muted playsInline className="aspect-video h-full w-full object-cover" />
               ) : preview ? (
-                <video src={preview} controls playsInline preload="metadata" className="aspect-video h-full w-full object-cover" />
+                file?.type.startsWith("image/") ? (
+                  <div className="relative aspect-video h-full w-full">
+                    <Image src={preview} alt="Upload preview" fill className="object-cover" />
+                  </div>
+                ) : (
+                  <video
+                    src={preview}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="aspect-video h-full w-full object-cover"
+                  />
+                )
               ) : file ? (
                 <div className="flex aspect-video items-center justify-center p-8 text-center text-white">
                   <div>

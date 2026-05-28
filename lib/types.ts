@@ -42,7 +42,7 @@ export type Application = {
 export type UploadRecord = {
   id: string;
   ownerId: string;
-  kind: "resume" | "video_resume" | "interview";
+  kind: "resume" | "video_resume" | "interview" | "avatar";
   fileName: string;
   url: string;
   contentType: string;

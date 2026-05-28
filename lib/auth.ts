@@ -12,6 +12,16 @@ export type AuthState = {
 
 const demoCookie = "hiresight_demo_role";
 
+function isSupabaseConfigured() {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
+function isDemoAuthEnabled() {
+  // Demo mode is useful for judges/local runs, but it must not silently bypass Supabase auth.
+  // Enable explicitly with HIRESIGHT_DEMO_AUTH=true.
+  return process.env.HIRESIGHT_DEMO_AUTH === "true";
+}
+
 export function setDemoSessionCookie(role: Role) {
   cookies().set(demoCookie, role, {
     httpOnly: true,
@@ -49,7 +59,12 @@ export async function getAuthState(): Promise<AuthState | null> {
         };
       }
     }
+    // Supabase is configured but there is no valid session.
+    // Do not fall back to demo cookies unless explicitly enabled.
+    if (isSupabaseConfigured() && !isDemoAuthEnabled()) return null;
   }
+
+  if (!isDemoAuthEnabled()) return null;
 
   const demoRole = getDemoSessionRole();
   if (!demoRole) return null;

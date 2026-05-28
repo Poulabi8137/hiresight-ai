@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
@@ -14,12 +15,14 @@ import {
   Clapperboard,
   Eye,
   Fingerprint,
+  Loader2,
   LockKeyhole,
   ShieldCheck,
   UserRound,
   UserRoundPlus
 } from "lucide-react";
 import { authSchema } from "@/lib/validation";
+import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -47,9 +50,12 @@ const roleContent = {
 };
 
 export default function AuthPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("signup");
   const [role, setRole] = useState<Role>("candidate");
-  const [message, setMessage] = useState("Choose your role to start a polished demo session.");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [message, setMessage] = useState("Choose your role to sign in with a dedicated workspace.");
+  const [fullName, setFullName] = useState("");
   const form = useForm<AuthForm>({
     resolver: zodResolver(authSchema),
     defaultValues: {
@@ -74,6 +80,24 @@ export default function AuthPage() {
     }
   }, [form]);
 
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      const currentRole = (data.session?.user.user_metadata?.role as Role | undefined) ?? null;
+      if (data.session && (currentRole === "candidate" || currentRole === "recruiter")) {
+        router.replace(roleContent[currentRole].destination);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
   const selectRole = (nextRole: Role) => {
     setRole(nextRole);
     form.setValue("role", nextRole);
@@ -81,13 +105,31 @@ export default function AuthPage() {
   };
 
   const onSubmit = async (values: AuthForm) => {
-    const response = await fetch("/api/auth/demo", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...values, mode })
-    });
-    const data = await response.json();
-    setMessage(data.message ?? `${roleContent[values.role].title} session prepared.`);
+    setStatus("loading");
+    setMessage("Establishing your session…");
+
+    try {
+      const response = await fetch("/api/auth/demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...values, mode, fullName: mode === "signup" ? fullName : undefined })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatus("error");
+        setMessage(data?.error ?? "Authentication failed. Check your credentials or environment keys.");
+        return;
+      }
+
+      setStatus("success");
+      setMessage(data.message ?? "Session established.");
+      router.refresh();
+      router.push(roleContent[values.role].destination);
+    } catch {
+      setStatus("error");
+      setMessage("Network error while authenticating. Please retry.");
+    }
   };
 
   const ActiveIcon = roleContent[role].icon;
@@ -213,6 +255,18 @@ export default function AuthPage() {
 
                 <form className="mt-5 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
                   <input type="hidden" {...form.register("role")} />
+                  {mode === "signup" ? (
+                    <div>
+                      <label className="text-sm font-medium">Full name</label>
+                      <Input
+                        className="mt-2 bg-background/70"
+                        value={fullName}
+                        onChange={(event) => setFullName(event.target.value)}
+                        placeholder="Your name"
+                        autoComplete="name"
+                      />
+                    </div>
+                  ) : null}
                   <div>
                     <label className="text-sm font-medium">Email</label>
                     <Input className="mt-2 bg-background/70" autoComplete="email" {...form.register("email")} />
@@ -228,18 +282,18 @@ export default function AuthPage() {
                     />
                     {form.formState.errors.password ? <p className="mt-1 text-xs text-destructive">{form.formState.errors.password.message}</p> : null}
                   </div>
-                  <Button className="w-full" size="lg" type="submit">
+                  <Button className="w-full" size="lg" type="submit" disabled={status === "loading"}>
                     {mode === "signup" ? "Create" : "Continue as"} {role}
-                    <ArrowRight className="h-4 w-4" />
+                    {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                   </Button>
                 </form>
 
                 <div className="mt-5 rounded-lg border bg-background/70 p-4 text-sm text-muted-foreground">
                   <div className="mb-2 flex items-center gap-2 font-medium text-foreground">
                     <Eye className="h-4 w-4 text-primary" />
-                    Demo status
+                    Auth status
                   </div>
-                  {message}
+                  <p className={status === "error" ? "text-destructive" : ""}>{message}</p>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">

@@ -7,7 +7,7 @@ AI-powered video resume hiring platform for candidate storytelling, recruiter re
 - Cinematic landing page with React Three Fiber depth, Framer Motion reveals, animated AI match counters, and light/dark/system theme support.
 - Candidate studio for onboarding progress, resume/video/interview signals, job discovery, and application flow.
 - Recruiter workspace with video spotlight review, explainable AI match breakdowns, candidate ranking, pipeline stages, shortlist/reject actions, and recruiter insight panels.
-- Upload studio with drag/drop validation, progress animation, preview states, and Vercel Blob-ready metadata API.
+- Upload studio with drag/drop validation, progress animation, preview states, and Supabase Storage-backed metadata API.
 - Next.js Route Handlers for auth demo, jobs, candidates, applications, uploads, AI scoring, AI summaries, and recruiter notes.
 - Supabase PostgreSQL schema with relationships, constraints, indexes, RLS policies, auth trigger, and seed data.
 - Gemini integration through Vercel AI SDK with deterministic fallback scoring for local demos.
@@ -19,7 +19,7 @@ AI-powered video resume hiring platform for candidate storytelling, recruiter re
 - Database: Supabase PostgreSQL with Row-Level Security.
 - Authentication: Supabase Auth, with local demo fallback when env vars are absent.
 - AI: Vercel AI SDK, Gemini Free Tier, deterministic scoring logic.
-- Storage: Vercel Blob, with local metadata fallback when a Blob token is absent.
+- Storage: Supabase Storage (private buckets + signed URLs).
 - Deployment: Vercel.
 
 ## Architecture
@@ -55,7 +55,6 @@ The app runs without service credentials using demo data. To enable production s
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
-BLOB_READ_WRITE_TOKEN=
 GOOGLE_GENERATIVE_AI_API_KEY=
 ```
 
@@ -87,4 +86,4 @@ npx tsc --noEmit
 
 ## Deployment
 
-Deploy to Vercel with the included `vercel.json`. Set the environment variables above in the Vercel dashboard. The app works in demo mode without credentials, but production auth, database writes, Blob storage, and Gemini summaries require service keys.
+Deploy to Vercel with the included `vercel.json`. Set the environment variables above in the Vercel dashboard. The app can run in local demo mode when explicitly enabled, but production auth, database writes, storage, and Gemini summaries require Supabase keys.

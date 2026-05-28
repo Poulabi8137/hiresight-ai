@@ -26,18 +26,22 @@ export async function POST(request: Request) {
       : await supabase.auth.signUp({
           email: parsed.data.email,
           password: parsed.data.password,
-          options: { data: { role: parsed.data.role } }
+          options: { data: { role: parsed.data.role, full_name: payload.fullName ?? undefined } }
         });
 
   if (result.error) {
-    setDemoSessionCookie(parsed.data.role);
-    return NextResponse.json({
-      role: parsed.data.role,
-      message: `Demo ${payload.mode === "signin" ? "login" : "signup"} ready for ${parsed.data.email}. Supabase returned "${result.error.message}", so the walkthrough is continuing in demo mode.`
-    });
+    // Only allow demo fallback when explicitly enabled.
+    if (process.env.HIRESIGHT_DEMO_AUTH === "true") {
+      setDemoSessionCookie(parsed.data.role);
+      return NextResponse.json({
+        role: parsed.data.role,
+        message: `Demo ${payload.mode === "signin" ? "login" : "signup"} ready for ${parsed.data.email}. Supabase returned "${result.error.message}", so the walkthrough is continuing in demo mode.`
+      });
+    }
+
+    return NextResponse.json({ error: result.error.message }, { status: 401 });
   }
 
-  setDemoSessionCookie(parsed.data.role);
   return NextResponse.json({
     user: result.data.user,
     role: parsed.data.role,

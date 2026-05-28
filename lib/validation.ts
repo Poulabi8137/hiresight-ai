@@ -26,8 +26,9 @@ export const uploadRequestSchema = z.object({
   fileName: z.string().min(1),
   contentType: z.string().min(1),
   size: z.number().positive(),
-  kind: z.enum(["resume", "video_resume", "interview"]),
+  kind: z.enum(["resume", "video_resume", "interview", "avatar"]),
   bucket: z.enum(["resumes", "videos", "avatars"]).optional(),
   storagePath: z.string().min(1).optional(),
+  // Durable references only. Signed URLs must never be stored.
   signedUrl: z.string().url().optional()
 });
