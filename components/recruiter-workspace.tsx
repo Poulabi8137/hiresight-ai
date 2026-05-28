@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   CheckCircle2,
   ChevronRight,
   FileText,
   Gauge,
+  Layers,
   MessageSquareText,
   Radar,
   ScanFace,
@@ -33,6 +34,8 @@ export function RecruiterWorkspace() {
   const { selectedCandidateId, setSelectedCandidateId } = useHireSightStore();
   const [fullscreen, setFullscreen] = useState(false);
   const [decisionState, setDecisionState] = useState<"idle" | "shortlisted" | "noted">("idle");
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const shouldReduceMotion = useReducedMotion();
   const selected = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? candidates[0];
   const job = jobs[0];
   const breakdown = scoreCandidate(selected, job);
@@ -57,9 +60,35 @@ export function RecruiterWorkspace() {
     []
   );
 
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = window.setTimeout(() => setFeedback(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFullscreen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <main className="relative min-h-[calc(100vh-4rem)] overflow-hidden cinematic-mesh">
       <div className="pointer-events-none absolute inset-0 -z-10 opacity-40 [background-image:linear-gradient(rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] [background-size:48px_48px] dark:opacity-25" />
+      <motion.div
+        aria-hidden
+        animate={shouldReduceMotion ? undefined : { y: [0, -10, 0], opacity: [0.32, 0.55, 0.32] }}
+        transition={shouldReduceMotion ? undefined : { duration: 10, repeat: Infinity, ease: "easeInOut" }}
+        className="pointer-events-none absolute -left-32 top-16 -z-10 h-72 w-72 rounded-full bg-teal-400/15 blur-3xl"
+      />
+      <motion.div
+        aria-hidden
+        animate={shouldReduceMotion ? undefined : { y: [0, 12, 0], opacity: [0.22, 0.4, 0.22] }}
+        transition={shouldReduceMotion ? undefined : { duration: 12, repeat: Infinity, ease: "easeInOut" }}
+        className="pointer-events-none absolute -right-40 top-40 -z-10 h-80 w-80 rounded-full bg-orange-400/12 blur-3xl"
+      />
 
       <div className="container space-y-8 py-8 lg:py-10">
         <motion.header
@@ -101,7 +130,7 @@ export function RecruiterWorkspace() {
         </motion.header>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(280px,340px)_1fr]">
-          <aside className="space-y-4">
+          <aside className="space-y-4 xl:sticky xl:top-[5.5rem] xl:self-start">
             <div className="glass rounded-xl p-5">
               <p className="section-kicker">Talent radar</p>
               <p className="mt-2 text-sm text-muted-foreground">Ranked by role fit, communication, and experience depth.</p>
@@ -159,13 +188,24 @@ export function RecruiterWorkspace() {
               className="glass-dark overflow-hidden rounded-2xl ring-glow"
             >
               <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
-                <VideoInterviewPlayer
-                  src={selected.videoUrl ?? "/demo-videos/strong-ai-interview.mp4"}
-                  candidateName={selected.name}
-                  candidateInitials={initials(selected.name)}
-                  className="min-h-[320px] lg:min-h-[520px]"
-                  onCinemaMode={() => setFullscreen(true)}
-                />
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={`spotlight-video-${selected.id}`}
+                    initial={{ opacity: 0, filter: "blur(8px)", scale: 0.985 }}
+                    animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+                    exit={{ opacity: 0, filter: "blur(8px)", scale: 0.99 }}
+                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                    className="relative"
+                  >
+                    <VideoInterviewPlayer
+                      src={selected.videoUrl ?? "/demo-videos/strong-ai-interview.mp4"}
+                      candidateName={selected.name}
+                      candidateInitials={initials(selected.name)}
+                      className="min-h-[320px] lg:min-h-[520px]"
+                      onCinemaMode={() => setFullscreen(true)}
+                    />
+                  </motion.div>
+                </AnimatePresence>
 
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.div
@@ -187,9 +227,20 @@ export function RecruiterWorkspace() {
                       </div>
 
                       <div className="mt-8 space-y-4">
-                        <Signal label="Skill overlap" value={breakdown.skillScore} icon={Gauge} inverted />
-                        <Signal label="Experience relevance" value={breakdown.experienceScore} icon={FileText} inverted />
-                        <Signal label="Video signal strength" value={breakdown.signalScore} icon={ScanFace} inverted />
+                        {[
+                          ["Skill overlap", breakdown.skillScore, Gauge],
+                          ["Experience relevance", breakdown.experienceScore, FileText],
+                          ["Video signal strength", breakdown.signalScore, ScanFace]
+                        ].map(([label, value, Icon], index) => (
+                          <motion.div
+                            key={String(label)}
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.06 + index * 0.08 }}
+                          >
+                            <Signal label={String(label)} value={Number(value)} icon={Icon as LucideIcon} inverted />
+                          </motion.div>
+                        ))}
                       </div>
                     </div>
 
@@ -207,7 +258,10 @@ export function RecruiterWorkspace() {
                       <div className="mt-6 grid grid-cols-2 gap-3">
                         <Button
                           className={`bg-teal-400 text-slate-950 hover:bg-teal-300 ${decisionState === "shortlisted" ? "animate-pulse-glow" : ""}`}
-                          onClick={() => setDecisionState("shortlisted")}
+                          onClick={() => {
+                            setDecisionState("shortlisted");
+                            setFeedback("Candidate added to shortlist.");
+                          }}
                         >
                           <CheckCircle2 className="h-4 w-4" />
                           {decisionState === "shortlisted" ? "Shortlisted" : "Shortlist"}
@@ -215,7 +269,10 @@ export function RecruiterWorkspace() {
                         <Button
                           variant="outline"
                           className="border-white/15 bg-white/[0.06] text-white hover:bg-white/10"
-                          onClick={() => setDecisionState("noted")}
+                          onClick={() => {
+                            setDecisionState("noted");
+                            setFeedback("Recruiter note saved.");
+                          }}
                         >
                           <MessageSquareText className="h-4 w-4" />
                           {decisionState === "noted" ? "Note saved" : "Add note"}
@@ -241,6 +298,10 @@ export function RecruiterWorkspace() {
                     <Sparkles className="h-4 w-4" />
                     Generate shortlist
                   </Button>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Layers className="h-3.5 w-3.5 text-primary" />
+                  Drag-and-drop board coming next — this view is optimized for cinematic review.
                 </div>
 
                 <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -337,14 +398,18 @@ export function RecruiterWorkspace() {
                 </Button>
               </div>
               <div className="grid flex-1 overflow-hidden rounded-2xl border border-white/10 lg:grid-cols-[1fr_22rem]">
-                <video
-                  src={selected.videoUrl}
-                  controls
-                  autoPlay
-                  muted
-                  playsInline
-                  className="h-full w-full bg-black object-contain"
-                />
+                <div className="relative bg-black">
+                  <VideoInterviewPlayer
+                    src={selected.videoUrl ?? "/demo-videos/strong-ai-interview.mp4"}
+                    candidateName={selected.name}
+                    candidateInitials={initials(selected.name)}
+                    title="Cinema review"
+                    className="h-full w-full"
+                    showCinemaButton={false}
+                    autoPlay
+                  />
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(45,212,191,0.12),transparent_34%),radial-gradient(circle_at_80%_88%,rgba(251,146,60,0.12),transparent_32%)]" />
+                </div>
                 <div className="border-t border-white/10 bg-white/[0.04] p-5 lg:border-l lg:border-t-0">
                   <h3 className="font-semibold">AI observation stream</h3>
                   <div className="mt-4 space-y-3 text-sm text-white/72">
@@ -357,6 +422,26 @@ export function RecruiterWorkspace() {
                     <Signal label="Communication" value={selected.communication} icon={ScanFace} inverted />
                   </div>
                 </div>
+              </div>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {feedback ? (
+          <motion.div
+            initial={{ opacity: 0, y: 14, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ duration: 0.22 }}
+            className="fixed bottom-5 left-1/2 z-[90] w-[min(34rem,92vw)] -translate-x-1/2"
+          >
+            <div className="glass rounded-2xl px-4 py-3 shadow-glow">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="h-2 w-2 rounded-full bg-teal-400 shadow-[0_0_18px_rgba(45,212,191,0.9)]" />
+                <span className="text-foreground">{feedback}</span>
+                <span className="ml-auto text-xs text-muted-foreground">Esc closes cinema</span>
               </div>
             </div>
           </motion.div>

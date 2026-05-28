@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Maximize2, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ type VideoInterviewPlayerProps = {
   className?: string;
   onCinemaMode?: () => void;
   showCinemaButton?: boolean;
+  autoPlay?: boolean;
 };
 
 export function VideoInterviewPlayer({
@@ -23,39 +24,69 @@ export function VideoInterviewPlayer({
   title = "Interview review",
   className,
   onCinemaMode,
-  showCinemaButton = true
+  showCinemaButton = true,
+  autoPlay = false
 }: VideoInterviewPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const shouldReduceMotion = useReducedMotion();
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
   const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
+  const [timeLabel, setTimeLabel] = useState("0:00");
+  const [durationLabel, setDurationLabel] = useState("0:00");
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
+    setReady(false);
+    setPlaying(false);
+    setProgress(0);
+
+    const format = (seconds: number) => {
+      const safe = Number.isFinite(seconds) ? seconds : 0;
+      const minutes = Math.floor(safe / 60);
+      const remainder = Math.floor(safe % 60);
+      return `${minutes}:${String(remainder).padStart(2, "0")}`;
+    };
+
     const onTime = () => {
       if (!video.duration) return;
       setProgress((video.currentTime / video.duration) * 100);
+      setTimeLabel(format(video.currentTime));
     };
 
+    const onLoaded = () => {
+      setReady(true);
+      setDurationLabel(format(video.duration));
+      if (autoPlay) {
+        void video.play();
+      }
+    };
+
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+
     video.addEventListener("timeupdate", onTime);
-    video.addEventListener("loadeddata", () => setReady(true));
+    video.addEventListener("loadeddata", onLoaded);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
     return () => {
       video.removeEventListener("timeupdate", onTime);
+      video.removeEventListener("loadeddata", onLoaded);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
     };
-  }, [src]);
+  }, [autoPlay, src]);
 
   const togglePlay = async () => {
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
       await video.play();
-      setPlaying(true);
     } else {
       video.pause();
-      setPlaying(false);
     }
   };
 
@@ -66,8 +97,8 @@ export function VideoInterviewPlayer({
       {!ready ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-8">
           <motion.div
-            animate={{ scale: [1, 1.04, 1], opacity: [0.7, 1, 0.7] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+            animate={shouldReduceMotion ? undefined : { scale: [1, 1.04, 1], opacity: [0.7, 1, 0.7] }}
+            transition={shouldReduceMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
             className="flex h-24 w-24 items-center justify-center rounded-full border border-teal-400/40 bg-teal-400/10 text-2xl font-semibold text-teal-100 shadow-[0_0_60px_rgba(45,212,191,0.35)]"
           >
             {candidateInitials}
@@ -88,6 +119,7 @@ export function VideoInterviewPlayer({
           ready ? "opacity-90" : "opacity-0"
         )}
         muted={muted}
+        autoPlay={autoPlay}
         playsInline
         preload="metadata"
         onClick={togglePlay}
@@ -119,6 +151,7 @@ export function VideoInterviewPlayer({
               size="icon"
               variant="outline"
               onClick={togglePlay}
+              aria-label={playing ? "Pause video" : "Play video"}
               className="h-10 w-10 border-white/20 bg-black/50 text-white hover:bg-white/10"
             >
               {playing ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4 fill-current" />}
@@ -133,10 +166,16 @@ export function VideoInterviewPlayer({
                 video.muted = !video.muted;
                 setMuted(video.muted);
               }}
+              aria-label={muted ? "Unmute video" : "Mute video"}
               className="h-10 w-10 border-white/20 bg-black/50 text-white hover:bg-white/10"
             >
               {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </Button>
+            <div className="hidden sm:block">
+              <span className="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs text-white/70 backdrop-blur">
+                {timeLabel} / {durationLabel}
+              </span>
+            </div>
           </div>
           {showCinemaButton && onCinemaMode ? (
             <Button
