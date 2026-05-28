@@ -34,16 +34,27 @@ export function VideoInterviewPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    setReady(false);
+    setPlaying(false);
+    setProgress(0);
 
     const onTime = () => {
       if (!video.duration) return;
       setProgress((video.currentTime / video.duration) * 100);
     };
+    const onLoaded = () => setReady(true);
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
 
     video.addEventListener("timeupdate", onTime);
-    video.addEventListener("loadeddata", () => setReady(true));
+    video.addEventListener("loadeddata", onLoaded);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
     return () => {
       video.removeEventListener("timeupdate", onTime);
+      video.removeEventListener("loadeddata", onLoaded);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
     };
   }, [src]);
 
@@ -51,11 +62,13 @@ export function VideoInterviewPlayer({
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      await video.play();
-      setPlaying(true);
+      try {
+        await video.play();
+      } catch {
+        setPlaying(false);
+      }
     } else {
       video.pause();
-      setPlaying(false);
     }
   };
 
@@ -119,6 +132,7 @@ export function VideoInterviewPlayer({
               size="icon"
               variant="outline"
               onClick={togglePlay}
+              aria-label={playing ? "Pause interview" : "Play interview"}
               className="h-10 w-10 border-white/20 bg-black/50 text-white hover:bg-white/10"
             >
               {playing ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4 fill-current" />}
@@ -133,6 +147,7 @@ export function VideoInterviewPlayer({
                 video.muted = !video.muted;
                 setMuted(video.muted);
               }}
+              aria-label={muted ? "Unmute interview" : "Mute interview"}
               className="h-10 w-10 border-white/20 bg-black/50 text-white hover:bg-white/10"
             >
               {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
