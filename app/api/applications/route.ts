@@ -1,20 +1,40 @@
-import { NextResponse } from "next/server";
-import { applications, candidates, jobs } from "@/lib/demo-data";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { scoreCandidate } from "@/lib/ai/scoring";
 import { applicationSchema } from "@/lib/validation";
-import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { getAuthState } from "@/lib/auth";
+import { listApplications, createApplication, updateApplicationStage, getCandidate, getJob } from "@/lib/db";
+import { parsePagination } from "@/lib/pagination";
+import { logger } from "@/lib/logger";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const start = performance.now();
   const auth = await getAuthState();
   if (!auth) {
     return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
   }
 
-  return NextResponse.json({ applications, source: "demo" });
+  const searchParams = request.nextUrl.searchParams;
+  const { page, limit } = parsePagination({
+    page: Number(searchParams.get("page")) || undefined,
+    limit: Number(searchParams.get("limit")) || undefined
+  });
+
+  const { data, total, source } = await listApplications(page, limit);
+  const elapsed = performance.now() - start;
+  if (elapsed > 200) {
+    logger.warn("Slow applications endpoint", { metadata: { elapsed: `${Math.round(elapsed)}ms` } });
+  }
+  return NextResponse.json({
+    applications: data, data,
+    pagination: { page, limit, total, hasMore: page * limit < total },
+    source,
+    timing: { elapsed: `${Math.round(elapsed)}ms` }
+  });
 }
 
 export async function POST(request: Request) {
+  const start = performance.now();
   const auth = await getAuthState();
   if (!auth || auth.role !== "candidate") {
     return NextResponse.json({ error: "Candidate authentication is required to apply." }, { status: 401 });
@@ -26,26 +46,47 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid application payload", issues: parsed.error.flatten() }, { status: 400 });
   }
 
-  const candidate = candidates.find((item) => item.id === parsed.data.candidateId);
-  const job = jobs.find((item) => item.id === parsed.data.jobId);
-  if (!candidate || !job) {
-    return NextResponse.json({ error: "Candidate or job not found" }, { status: 404 });
-  }
+  const [candidate, job] = await Promise.all([
+    getCandidate(parsed.data.candidateId),
+    getJob(parsed.data.jobId)
+  ]);
 
   const match = scoreCandidate(candidate, job);
-  const record = {
-    candidate_id: parsed.data.candidateId,
-    job_id: parsed.data.jobId,
-    stage: "applied",
-    match_score: match.score
-  };
+  const { application, source } = await createApplication({
+    candidateId: parsed.data.candidateId,
+    jobId: parsed.data.jobId,
+    matchScore: match.score
+  });
 
-  const supabase = createServiceSupabaseClient();
-  if (!supabase) {
-    return NextResponse.json({ application: { id: `demo-${Date.now()}`, ...record }, match, source: "demo" }, { status: 201 });
+  const elapsed = performance.now() - start;
+  if (elapsed > 200) {
+    logger.warn("Slow applications POST endpoint", { metadata: { elapsed: `${Math.round(elapsed)}ms` } });
+  }
+  return NextResponse.json({ application, match, source, timing: { elapsed: `${Math.round(elapsed)}ms` } }, { status: 201 });
+}
+
+const stageSchema = z.object({
+  applicationId: z.string().min(1),
+  stage: z.enum(["applied", "screening", "shortlisted", "interview", "offer", "rejected"])
+});
+
+export async function PATCH(request: Request) {
+  const start = performance.now();
+  const auth = await getAuthState();
+  if (!auth || auth.role !== "recruiter") {
+    return NextResponse.json({ error: "Recruiter authentication is required." }, { status: 401 });
   }
 
-  const { data, error } = await supabase.from("applications").insert(record).select("*").single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ application: data, match, source: "supabase" }, { status: 201 });
+  const body = await request.json();
+  const parsed = stageSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid stage update payload", issues: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const { application, source } = await updateApplicationStage(parsed.data.applicationId, parsed.data.stage);
+  const elapsed = performance.now() - start;
+  if (elapsed > 200) {
+    logger.warn("Slow applications PATCH endpoint", { metadata: { elapsed: `${Math.round(elapsed)}ms` } });
+  }
+  return NextResponse.json({ application, source, timing: { elapsed: `${Math.round(elapsed)}ms` } });
 }

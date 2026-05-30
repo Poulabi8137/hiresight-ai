@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthState } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { enqueueResumeParse } from "@/lib/jobs";
 
 export const runtime = "nodejs";
 
 const kindSchema = z.enum(["resume", "video_resume", "interview", "avatar"]);
 
 const uploadSchema = z.object({
-  kind: kindSchema
+  kind: kindSchema,
+  contentHash: z.string().optional()
 });
 
 const limits = {
@@ -83,15 +85,38 @@ export async function POST(request: Request) {
     );
   }
 
+  // Dedup: check for existing upload with same owner + kind + file name + size
   const safeName = sanitizeFileName(file.name || "upload");
+  const { data: existing } = await supabase
+    .from("uploads")
+    .select("*")
+    .eq("owner_id", auth.userId)
+    .eq("kind", parsed.data.kind)
+    .eq("file_name", safeName)
+    .eq("size", file.size)
+    .maybeSingle();
+
+  if (existing) {
+    return NextResponse.json(
+      { upload: existing, durable: { bucket: existing.bucket, path: existing.storage_path, url: existing.url }, dedup: true },
+      { status: 200 }
+    );
+  }
+
   const storagePath = `${auth.userId}/${parsed.data.kind}/${Date.now()}-${safeName}`;
   const bucket = lane.bucket;
 
-  const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, file, {
-    upsert: false,
-    contentType: file.type,
-    cacheControl: "3600"
-  });
+  let uploadError: { message: string } | null = null;
+  try {
+    const { error } = await supabase.storage.from(bucket).upload(storagePath, file, {
+      upsert: false,
+      contentType: file.type,
+      cacheControl: "3600"
+    });
+    uploadError = error;
+  } catch (e) {
+    uploadError = { message: e instanceof Error ? e.message : "Storage service unreachable." };
+  }
 
   if (uploadError) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 });
@@ -109,25 +134,41 @@ export async function POST(request: Request) {
     url: durableUrl
   };
 
-  const { data: uploadRow, error: insertError } = await supabase.from("uploads").insert(record).select("*").single();
-  if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+  let uploadRow: any = null;
+  try {
+    const { data, error: insertError } = await supabase.from("uploads").insert(record).select("*").single();
+    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+    uploadRow = data;
+  } catch (e) {
+    return NextResponse.json({
+      error: e instanceof Error ? e.message : "Database insert failed.",
+      partial: { bucket, path: storagePath }
+    }, { status: 500 });
   }
 
   // Best-effort persistence onto profile tables (when present). We never store signed URLs here.
-  if (parsed.data.kind === "avatar") {
-    await supabase.from("users").update({ avatar_url: durableUrl }).eq("id", auth.userId);
-  } else {
-    const updates =
-      parsed.data.kind === "resume"
-        ? { resume_url: durableUrl }
-        : parsed.data.kind === "video_resume"
-          ? { video_url: durableUrl }
-          : null;
+  try {
+    if (parsed.data.kind === "avatar") {
+      await supabase.from("users").update({ avatar_url: durableUrl }).eq("id", auth.userId);
+    } else {
+      const updates =
+        parsed.data.kind === "resume"
+          ? { resume_url: durableUrl }
+          : parsed.data.kind === "video_resume"
+            ? { video_url: durableUrl }
+            : null;
 
-    if (updates) {
-      await supabase.from("candidates").update(updates).eq("user_id", auth.userId);
+      if (updates) {
+        await supabase.from("candidates").update(updates).eq("user_id", auth.userId);
+      }
     }
+  } catch {
+    // Profile update is best-effort; upload already succeeded
+  }
+
+  // Enqueue resume parsing for resume uploads
+  if (parsed.data.kind === "resume") {
+    enqueueResumeParse(auth.userId, bucket, storagePath);
   }
 
   return NextResponse.json(

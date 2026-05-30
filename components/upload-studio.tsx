@@ -17,7 +17,7 @@ import {
   Square,
   UploadCloud
 } from "lucide-react";
-import { useHireSightStore } from "@/lib/store";
+import { useHireSightStore, useUploadsByKind, useUploadProgress, type StoredUpload } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -60,20 +60,71 @@ export function UploadStudio() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const { uploadProgress, setUploadProgress } = useHireSightStore();
-  const progress = uploadProgress[kind] ?? 0;
+  const uploadProgress = useUploadProgress();
+  const uploadsByKind = useUploadsByKind();
+  const setUploadProgress = useHireSightStore((s) => s.setUploadProgress);
+  const addUpload = useHireSightStore((s) => s.addUpload);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+
+  const activeUpload: StoredUpload | null = useMemo(
+    () => uploadsByKind[kind]?.[0] ?? null,
+    [uploadsByKind, kind]
+  );
+
+  const progress = useMemo(() => {
+    if (status === "uploading" || status === "done") return uploadProgress[kind] ?? 0;
+    if (activeUpload && !file && status === "idle") return 100;
+    return uploadProgress[kind] ?? 0;
+  }, [status, uploadProgress, kind, activeUpload, file]);
+
   const preview = useMemo(() => {
     if (demoUrl) return demoUrl;
-    if (file && file.type.startsWith("video/")) return URL.createObjectURL(file);
-    if (file && file.type.startsWith("image/")) return URL.createObjectURL(file);
+    if (file) {
+      if (file.type.startsWith("video/") || file.type.startsWith("image/")) {
+        return URL.createObjectURL(file);
+      }
+      return null;
+    }
+    if (signedUrl) return signedUrl;
     return null;
-  }, [demoUrl, file]);
+  }, [demoUrl, file, signedUrl]);
 
   useEffect(() => {
     return () => {
       if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
     };
   }, [preview]);
+
+  useEffect(() => {
+    if (!activeUpload) {
+      setSignedUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchSignedUrl = async () => {
+      try {
+        const res = await fetch("/api/storage/signed-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bucket: activeUpload.bucket, path: activeUpload.storage_path })
+        });
+        const data = await res.json();
+        if (!cancelled && data.signedUrl) {
+          setSignedUrl(data.signedUrl);
+        }
+      } catch {
+        if (!cancelled) setSignedUrl(null);
+      }
+    };
+
+    fetchSignedUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeUpload]);
 
   useEffect(() => {
     return () => {
@@ -104,48 +155,69 @@ export function UploadStudio() {
     acceptFile(event.target.files?.[0]);
   };
 
+  const doUpload = (retries = 2): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const form = new FormData();
+      form.set("kind", kind);
+      form.set("file", file!);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/storage/upload");
+      xhr.responseType = "json";
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        const next = Math.max(6, Math.min(96, Math.round((event.loaded / event.total) * 96)));
+        setUploadProgress(kind, next);
+      };
+
+      xhr.onerror = () => reject(new Error("Upload failed. Check your connection and retry."));
+
+      xhr.onload = () => {
+        const ok = xhr.status >= 200 && xhr.status < 300;
+        if (!ok) {
+          const err = (xhr.response as any)?.error ?? "Upload service returned an error.";
+          reject(new Error(String(err)));
+          return;
+        }
+
+        const record = (xhr.response as any)?.upload;
+        if (record && record.bucket && record.storage_path) {
+          addUpload(kind, record);
+        }
+        resolve();
+      };
+
+      xhr.send(form);
+    });
+  };
+
   const upload = async () => {
     if (!file) return;
     setStatus("uploading");
     setMessage("Uploading securely to private Supabase Storage…");
     setUploadProgress(kind, 4);
 
-    const form = new FormData();
-    form.set("kind", kind);
-    form.set("file", file);
-
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/storage/upload");
-    xhr.responseType = "json";
-
-    xhr.upload.onprogress = (event) => {
-      if (!event.lengthComputable) return;
-      const next = Math.max(6, Math.min(96, Math.round((event.loaded / event.total) * 96)));
-      setUploadProgress(kind, next);
-    };
-
-    xhr.onerror = () => {
-      setStatus("error");
-      setMessage("Upload failed. Check your connection and retry.");
-      setUploadProgress(kind, 0);
-    };
-
-    xhr.onload = () => {
-      const ok = xhr.status >= 200 && xhr.status < 300;
-      if (!ok) {
-        const err = (xhr.response as any)?.error ?? "Upload service returned an error.";
-        setStatus("error");
-        setMessage(String(err));
-        setUploadProgress(kind, 0);
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await doUpload(attempt);
+        setUploadProgress(kind, 100);
+        setStatus("done");
+        setMessage("Upload complete. Stored as a durable bucket/path reference with signed URLs generated on demand.");
         return;
+      } catch (e) {
+        lastError = e instanceof Error ? e : new Error("Upload failed.");
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+          setMessage(`Retrying… (attempt ${attempt + 2}/3)`);
+        }
       }
+    }
 
-      setUploadProgress(kind, 100);
-      setStatus("done");
-      setMessage("Upload complete. Stored as a durable bucket/path reference with signed URLs generated on demand.");
-    };
-
-    xhr.send(form);
+    setStatus("error");
+    setMessage(lastError?.message ?? "Upload failed after 3 attempts.");
+    setUploadProgress(kind, 0);
   };
 
   const loadDemoVideo = async (sample: (typeof demoVideos)[number]) => {
@@ -213,6 +285,52 @@ export function UploadStudio() {
     recorderRef.current?.stop();
   };
 
+  const renderPreview = () => {
+    if (cameraState === "live" || cameraState === "recording") {
+      return <video ref={videoRef} muted playsInline className="aspect-video h-full w-full object-cover" />;
+    }
+
+    if (preview) {
+      if (file?.type.startsWith("image/")) {
+        return (
+          <div className="relative aspect-video h-full w-full">
+            <Image src={preview} alt="Upload preview" fill className="object-cover" />
+          </div>
+        );
+      }
+      return (
+        <video
+          src={preview}
+          controls
+          playsInline
+          preload="metadata"
+          className="aspect-video h-full w-full object-cover"
+        />
+      );
+    }
+
+    if (file) {
+      return (
+        <div className="flex aspect-video items-center justify-center p-8 text-center text-white">
+          <div>
+            <FileUp className="mx-auto h-10 w-10 text-primary" />
+            <p className="mt-3 text-sm">{file.name}</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex aspect-video items-center justify-center p-8 text-center text-white">
+        <div>
+          <FileVideo className="mx-auto h-12 w-12 text-primary" />
+          <h2 className="mt-4 text-2xl font-semibold">Preview appears here instantly</h2>
+          <p className="mt-2 text-sm text-slate-300">Use camera, demo samples, or drag a file.</p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <main className="container py-8">
       <div className="mb-8 grid gap-5 lg:grid-cols-[1fr_0.42fr] lg:items-end">
@@ -250,7 +368,12 @@ export function UploadStudio() {
               <Button
                 key={value}
                 variant={kind === value ? "default" : "outline"}
-                onClick={() => setKind(value as UploadKind)}
+                onClick={() => {
+                  setKind(value as UploadKind);
+                  setFile(null);
+                  setDemoUrl(null);
+                  setStatus("idle");
+                }}
                 className="justify-start"
               >
                 <FileUp className="h-4 w-4" />
@@ -296,46 +419,15 @@ export function UploadStudio() {
         >
           <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
             <div className="relative overflow-hidden rounded-lg border bg-slate-950">
-              {cameraState === "live" || cameraState === "recording" ? (
-                <video ref={videoRef} muted playsInline className="aspect-video h-full w-full object-cover" />
-              ) : preview ? (
-                file?.type.startsWith("image/") ? (
-                  <div className="relative aspect-video h-full w-full">
-                    <Image src={preview} alt="Upload preview" fill className="object-cover" />
-                  </div>
-                ) : (
-                  <video
-                    src={preview}
-                    controls
-                    playsInline
-                    preload="metadata"
-                    className="aspect-video h-full w-full object-cover"
-                  />
-                )
-              ) : file ? (
-                <div className="flex aspect-video items-center justify-center p-8 text-center text-white">
-                  <div>
-                    <FileUp className="mx-auto h-10 w-10 text-primary" />
-                    <p className="mt-3 text-sm">{file.name}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex aspect-video items-center justify-center p-8 text-center text-white">
-                  <div>
-                    <FileVideo className="mx-auto h-12 w-12 text-primary" />
-                    <h2 className="mt-4 text-2xl font-semibold">Preview appears here instantly</h2>
-                    <p className="mt-2 text-sm text-slate-300">Use camera, demo samples, or drag a file.</p>
-                  </div>
-                </div>
-              )}
+              {renderPreview()}
               <div className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs font-medium text-white backdrop-blur">
-                {cameraState === "recording" ? "Recording" : cameraState === "live" ? "Live camera" : file ? file.name : "No file selected"}
+                {cameraState === "recording" ? "Recording" : cameraState === "live" ? "Live camera" : file ? file.name : activeUpload ? activeUpload.file_name : "No file selected"}
               </div>
             </div>
 
             <div className="flex flex-col justify-between gap-4">
-              <label className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-primary/40 bg-background/50 p-6 text-center transition hover:bg-primary/5">
-                <UploadCloud className="h-9 w-9 text-primary" />
+              <label className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-primary/40 bg-background/50 p-6 text-center transition hover:bg-primary/5" role="button" aria-label={`Upload ${kind.replace("_", " ")} file`}>
+                <UploadCloud className="h-9 w-9 text-primary" aria-hidden="true" />
                 <h2 className="mt-4 text-xl font-semibold">Drag, drop, preview, upload</h2>
                 <p className="mt-2 max-w-md text-sm text-muted-foreground">{message}</p>
                 <input
@@ -343,6 +435,7 @@ export function UploadStudio() {
                   className="sr-only"
                   accept={limits[kind].join(",")}
                   onChange={onChange}
+                  aria-label={`Select ${kind.replace("_", " ")} file`}
                 />
               </label>
 
@@ -351,8 +444,9 @@ export function UploadStudio() {
                   variant={cameraState === "idle" ? "outline" : "default"}
                   onClick={cameraState === "idle" ? startCamera : stopCamera}
                   type="button"
+                  aria-label={cameraState === "idle" ? `Start camera for ${kind.replace("_", " ")}` : "Stop camera"}
                 >
-                  <Camera className="h-4 w-4" />
+                  <Camera className="h-4 w-4" aria-hidden="true" />
                   {cameraState === "idle" ? "Start camera" : "Stop camera"}
                 </Button>
                 <Button
@@ -360,8 +454,9 @@ export function UploadStudio() {
                   disabled={cameraState !== "live" && cameraState !== "recording"}
                   onClick={cameraState === "recording" ? stopRecording : startRecording}
                   type="button"
+                  aria-label={cameraState === "recording" ? "Stop recording" : "Start recording"}
                 >
-                  {cameraState === "recording" ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  {cameraState === "recording" ? <Square className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />}
                   {cameraState === "recording" ? "Stop recording" : "Record answer"}
                 </Button>
               </div>
@@ -369,11 +464,11 @@ export function UploadStudio() {
           </div>
 
           <div className="mt-5">
-            <Progress value={progress} />
+            <Progress value={progress} aria-label={`Upload progress: ${progress}%`} />
             <div className="mt-4 flex items-center justify-between gap-4">
               <p className="text-sm text-muted-foreground">{progress}% complete</p>
-              <Button disabled={!file || status === "uploading"} onClick={upload}>
-                {status === "uploading" ? <Loader2 className="h-4 w-4 animate-spin" /> : status === "done" ? <CheckCircle2 className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
+              <Button disabled={!file || status === "uploading"} onClick={upload} aria-label={status === "done" ? "File uploaded" : status === "uploading" ? "Uploading file" : "Upload file"}>
+                {status === "uploading" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : status === "done" ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <PlayCircle className="h-4 w-4" aria-hidden="true" />}
                 {status === "done" ? "Uploaded" : "Upload"}
               </Button>
             </div>

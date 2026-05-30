@@ -1,22 +1,60 @@
 import { NextResponse } from "next/server";
-import { candidates, jobs } from "@/lib/demo-data";
 import { scoreCandidate } from "@/lib/ai/scoring";
+import { getCandidate, getJob, getCachedScore, cacheScore } from "@/lib/db";
 import { getAuthState } from "@/lib/auth";
+import { logger, generateRequestId } from "@/lib/logger";
 
 export async function POST(request: Request) {
+  const requestId = generateRequestId();
   const auth = await getAuthState();
   if (!auth) {
     return NextResponse.json({ error: "Authentication is required for AI insights." }, { status: 401 });
   }
 
   const body = await request.json();
-  const candidate = candidates.find((item) => item.id === body.candidateId) ?? candidates[0];
-  const job = jobs.find((item) => item.id === body.jobId) ?? jobs[0];
+  const { candidateId, jobId } = body;
+  if (!candidateId || !jobId) {
+    return NextResponse.json({ error: "candidateId and jobId are required." }, { status: 400 });
+  }
+
+  // Check cache
+  const cached = await getCachedScore(candidateId, jobId);
+  if (cached) {
+    return NextResponse.json({
+      candidateId,
+      jobId,
+      breakdown: cached,
+      deterministic: true,
+      cached: true
+    });
+  }
+
+  const [candidate, job] = await Promise.all([
+    getCandidate(candidateId),
+    getJob(jobId)
+  ]);
+
+  const breakdown = scoreCandidate(candidate, job);
+
+  // Cache asynchronously (don't block response)
+  cacheScore({
+    candidateId, jobId,
+    score: breakdown.score,
+    skillScore: breakdown.skillScore,
+    experienceScore: breakdown.experienceScore,
+    signalScore: breakdown.signalScore,
+    matchedSkills: breakdown.matchedSkills,
+    missingSkills: breakdown.missingSkills,
+    summary: breakdown.summary
+  }).then(() => {
+    logger.debug("Score cached", { requestId, metadata: { candidateId, jobId } });
+  });
 
   return NextResponse.json({
     candidateId: candidate.id,
     jobId: job.id,
-    breakdown: scoreCandidate(candidate, job),
-    deterministic: true
+    breakdown,
+    deterministic: true,
+    cached: false
   });
 }

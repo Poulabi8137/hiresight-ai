@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { uploadRequestSchema } from "@/lib/validation";
 import { getAuthState } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { listUploads } from "@/lib/db";
 
 const maxBytes = 250 * 1024 * 1024;
 
@@ -9,6 +10,14 @@ function bucketForKind(kind: "resume" | "video_resume" | "interview" | "avatar")
   if (kind === "resume") return "resumes";
   if (kind === "avatar") return "avatars";
   return "videos";
+}
+
+export async function GET() {
+  const auth = await getAuthState();
+  if (!auth) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+
+  const { data, source } = await listUploads(auth.userId);
+  return NextResponse.json({ uploads: data, source });
 }
 
 export async function POST(request: Request) {

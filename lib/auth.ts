@@ -40,24 +40,28 @@ export function getDemoSessionRole(): Role | null {
 export async function getAuthState(): Promise<AuthState | null> {
   const supabase = createServerSupabaseClient();
   if (supabase) {
-    const { data } = await supabase.auth.getUser();
-    if (data.user) {
-      const metadataRole = data.user.user_metadata?.role;
-      const { data: profile } = await supabase
-        .from("users")
-        .select("role,email")
-        .eq("id", data.user.id)
-        .maybeSingle();
+    try {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        const metadataRole = data.user.user_metadata?.role;
+        const { data: profile } = await supabase
+          .from("users")
+          .select("role,email")
+          .eq("id", data.user.id)
+          .maybeSingle();
 
-      const role = profile?.role ?? metadataRole;
-      if (role === "candidate" || role === "recruiter") {
-        return {
-          userId: data.user.id,
-          role,
-          email: profile?.email ?? data.user.email,
-          source: "supabase"
-        };
+        const role = profile?.role ?? metadataRole;
+        if (role === "candidate" || role === "recruiter") {
+          return {
+            userId: data.user.id,
+            role,
+            email: profile?.email ?? data.user.email,
+            source: "supabase"
+          };
+        }
       }
+    } catch {
+      // Supabase unreachable — fall through to demo if enabled
     }
     // Supabase is configured but there is no valid session.
     // Do not fall back to demo cookies unless explicitly enabled.

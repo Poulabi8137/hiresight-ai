@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,7 +17,6 @@ import {
   Fingerprint,
   Loader2,
   LockKeyhole,
-  ShieldCheck,
   UserRound,
   UserRoundPlus
 } from "lucide-react";
@@ -56,6 +55,12 @@ export default function AuthPage() {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("Choose your role to sign in with a dedicated workspace.");
   const [fullName, setFullName] = useState("");
+  const [showReset, setShowReset] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetStatus, setResetStatus] = useState<"idle" | "loading" | "sent">("idle");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   const form = useForm<AuthForm>({
     resolver: zodResolver(authSchema),
     defaultValues: {
@@ -64,6 +69,9 @@ export default function AuthPage() {
       role: "candidate"
     }
   });
+
+  const isRecovery =
+    typeof window !== "undefined" && window.location.hash.includes("type=recovery");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -98,24 +106,47 @@ export default function AuthPage() {
     };
   }, [router]);
 
-  const selectRole = (nextRole: Role) => {
+  const selectRole = useCallback((nextRole: Role) => {
     setRole(nextRole);
     form.setValue("role", nextRole);
     form.setValue("email", roleContent[nextRole].email);
-  };
+  }, [form]);
 
   const onSubmit = async (values: AuthForm) => {
     setStatus("loading");
+    setShowReset(false);
     setMessage("Establishing your session…");
 
     try {
-      const response = await fetch("/api/auth/demo", {
+      const endpoint = mode === "signin" ? "/api/auth/signin" : "/api/auth/signup";
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, mode, fullName: mode === "signup" ? fullName : undefined })
+        body: JSON.stringify({ ...values, fullName: mode === "signup" ? fullName : undefined })
       });
 
       const data = await response.json().catch(() => ({}));
+
+      if (!response.ok && (response.status === 500 || response.status === 501) && data.error === "Supabase not configured") {
+        const demoResponse = await fetch("/api/auth/demo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...values, mode, fullName: mode === "signup" ? fullName : undefined })
+        });
+        const demoData = await demoResponse.json().catch(() => ({}));
+        if (!demoResponse.ok) {
+          setStatus("error");
+          setMessage(demoData?.error ?? "Authentication failed.");
+          return;
+        }
+        setStatus("success");
+        setMessage(demoData.message ?? "Demo session established.");
+        router.refresh();
+        router.push(roleContent[values.role].destination);
+        return;
+      }
+
       if (!response.ok) {
         setStatus("error");
         setMessage(data?.error ?? "Authentication failed. Check your credentials or environment keys.");
@@ -124,11 +155,88 @@ export default function AuthPage() {
 
       setStatus("success");
       setMessage(data.message ?? "Session established.");
+
+      if (data.requiresEmailConfirmation) {
+        return;
+      }
+
       router.refresh();
       router.push(roleContent[values.role].destination);
     } catch {
       setStatus("error");
       setMessage("Network error while authenticating. Please retry.");
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetEmail) return;
+    setResetStatus("loading");
+
+    try {
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setMessage(data.error ?? "Password reset request failed.");
+        setStatus("error");
+        setResetStatus("idle");
+        return;
+      }
+
+      setResetStatus("sent");
+      setMessage(data.message ?? "If an account with that email exists, a password reset link has been sent.");
+      setStatus("success");
+    } catch {
+      setMessage("Network error. Please retry.");
+      setStatus("error");
+      setResetStatus("idle");
+    }
+  };
+
+  const handleSetNewPassword = async () => {
+    if (newPassword.length < 8) {
+      setStatus("error");
+      setMessage("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setStatus("error");
+      setMessage("Passwords do not match.");
+      return;
+    }
+
+    setStatus("loading");
+    setMessage("Updating your password…");
+
+    try {
+      const supabase = createClient();
+      if (!supabase) {
+        setStatus("error");
+        setMessage("Supabase client unavailable.");
+        return;
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        setStatus("error");
+        setMessage(error.message);
+        return;
+      }
+
+      setStatus("success");
+      setMessage("Password updated. Redirecting to sign in…");
+
+      setTimeout(() => {
+        window.location.hash = "";
+        window.location.search = "mode=signin";
+      }, 2000);
+    } catch {
+      setStatus("error");
+      setMessage("Network error. Please retry.");
     }
   };
 
@@ -190,7 +298,7 @@ export default function AuthPage() {
                     </div>
                     <h2 className="mt-5 text-2xl font-semibold">{roleContent[role].title}</h2>
                     <p className="mt-3 text-sm leading-6 text-white/70">
-                      {mode === "signup" ? "Create a dedicated workspace with role-aware defaults." : "Resume your dedicated workspace and continue the demo."}
+                      {isRecovery ? "Set a new password for your account." : mode === "signup" ? "Create a dedicated workspace with role-aware defaults." : "Resume your dedicated workspace and continue the demo."}
                     </p>
                   </div>
                   <div className="grid gap-3">
@@ -211,82 +319,158 @@ export default function AuthPage() {
               </div>
 
               <div className="p-5 sm:p-7">
-                <div className="grid grid-cols-2 gap-2 rounded-lg bg-secondary/70 p-1">
-                  {([
-                    ["signup", "Sign up", UserRoundPlus],
-                    ["signin", "Sign in", LockKeyhole]
-                  ] as const).map(([value, label, Icon]) => (
-                    <Button
-                      key={value}
-                      type="button"
-                      variant={mode === value ? "default" : "ghost"}
-                      onClick={() => setMode(value)}
-                      className="h-11"
-                    >
-                      <Icon className="h-4 w-4" />
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {([
-                    ["candidate", "Candidate", UserRound],
-                    ["recruiter", "Recruiter", BriefcaseBusiness]
-                  ] as const).map(([value, label, Icon]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => selectRole(value)}
-                      className={`rounded-lg border p-4 text-left transition-all hover:-translate-y-0.5 ${
-                        role === value
-                          ? "border-primary bg-primary/10 shadow-glow"
-                          : "border-border bg-background/65 hover:bg-secondary/60"
-                      }`}
-                    >
-                      <Icon className="h-5 w-5 text-primary" />
-                      <span className="mt-3 block font-semibold">{label}</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {mode === "signup" ? "Create account" : "Continue session"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                <form className="mt-5 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-                  <input type="hidden" {...form.register("role")} />
-                  {mode === "signup" ? (
+                {isRecovery ? (
+                  <div className="space-y-5">
+                    <h3 className="text-lg font-semibold">Set new password</h3>
                     <div>
-                      <label className="text-sm font-medium">Full name</label>
+                      <label className="text-sm font-medium">New password</label>
                       <Input
                         className="mt-2 bg-background/70"
-                        value={fullName}
-                        onChange={(event) => setFullName(event.target.value)}
-                        placeholder="Your name"
-                        autoComplete="name"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Min 8 characters"
+                        autoComplete="new-password"
                       />
                     </div>
-                  ) : null}
-                  <div>
-                    <label className="text-sm font-medium">Email</label>
-                    <Input className="mt-2 bg-background/70" autoComplete="email" {...form.register("email")} />
-                    {form.formState.errors.email ? <p className="mt-1 text-xs text-destructive">{form.formState.errors.email.message}</p> : null}
+                    <div>
+                      <label className="text-sm font-medium">Confirm password</label>
+                      <Input
+                        className="mt-2 bg-background/70"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Repeat your password"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={handleSetNewPassword}
+                      disabled={status === "loading" || !newPassword || !confirmPassword}
+                    >
+                      {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update password"}
+                    </Button>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium">Password</label>
-                    <Input
-                      className="mt-2 bg-background/70"
-                      type="password"
-                      autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                      {...form.register("password")}
-                    />
-                    {form.formState.errors.password ? <p className="mt-1 text-xs text-destructive">{form.formState.errors.password.message}</p> : null}
-                  </div>
-                  <Button className="w-full" size="lg" type="submit" disabled={status === "loading"}>
-                    {mode === "signup" ? "Create" : "Continue as"} {role}
-                    {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  </Button>
-                </form>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-2 rounded-lg bg-secondary/70 p-1">
+                      {([
+                        ["signup", "Sign up", UserRoundPlus],
+                        ["signin", "Sign in", LockKeyhole]
+                      ] as const).map(([value, label, Icon]) => (
+                        <Button
+                          key={value}
+                          type="button"
+                          variant={mode === value ? "default" : "ghost"}
+                          onClick={() => { setMode(value); setShowReset(false); }}
+                          className="h-11"
+                        >
+                          <Icon className="h-4 w-4" />
+                          {label}
+                        </Button>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {([
+                        ["candidate", "Candidate", UserRound],
+                        ["recruiter", "Recruiter", BriefcaseBusiness]
+                      ] as const).map(([value, label, Icon]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => selectRole(value)}
+                          className={`rounded-lg border p-4 text-left transition-all hover:-translate-y-0.5 ${
+                            role === value
+                              ? "border-primary bg-primary/10 shadow-glow"
+                              : "border-border bg-background/65 hover:bg-secondary/60"
+                          }`}
+                        >
+                          <Icon className="h-5 w-5 text-primary" />
+                          <span className="mt-3 block font-semibold">{label}</span>
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            {mode === "signup" ? "Create account" : "Continue session"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {showReset ? (
+                      <div className="mt-5 space-y-4">
+                        <p className="text-sm text-muted-foreground">Enter your email to receive a password reset link.</p>
+                        <Input
+                          className="bg-background/70"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                          placeholder="your@email.com"
+                          type="email"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            className="flex-1"
+                            size="lg"
+                            onClick={handleResetPassword}
+                            disabled={resetStatus === "loading" || !resetEmail}
+                          >
+                            {resetStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send reset link"}
+                          </Button>
+                          <Button variant="ghost" size="lg" onClick={() => setShowReset(false)}>
+                            Back
+                          </Button>
+                        </div>
+                        {resetStatus === "sent" && (
+                          <p className="text-sm text-green-600 dark:text-green-400">Check your email for the reset link.</p>
+                        )}
+                      </div>
+                    ) : (
+                      <form className="mt-5 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+                        <input type="hidden" {...form.register("role")} />
+                        {mode === "signup" ? (
+                          <div>
+                            <label className="text-sm font-medium">Full name</label>
+                            <Input
+                              className="mt-2 bg-background/70"
+                              value={fullName}
+                              onChange={(event) => setFullName(event.target.value)}
+                              placeholder="Your name"
+                              autoComplete="name"
+                            />
+                          </div>
+                        ) : null}
+                        <div>
+                          <label className="text-sm font-medium">Email</label>
+                          <Input className="mt-2 bg-background/70" autoComplete="email" {...form.register("email")} />
+                          {form.formState.errors.email ? <p className="mt-1 text-xs text-destructive">{form.formState.errors.email.message}</p> : null}
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Password</label>
+                          <Input
+                            className="mt-2 bg-background/70"
+                            type="password"
+                            autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                            {...form.register("password")}
+                          />
+                          {form.formState.errors.password ? <p className="mt-1 text-xs text-destructive">{form.formState.errors.password.message}</p> : null}
+                        </div>
+                        {mode === "signin" && (
+                          <button
+                            type="button"
+                            onClick={() => setShowReset(true)}
+                            className="text-sm text-primary hover:underline"
+                          >
+                            Forgot password?
+                          </button>
+                        )}
+                        <Button className="w-full" size="lg" type="submit" disabled={status === "loading"}>
+                          {mode === "signup" ? "Create" : "Continue as"} {role}
+                          {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                        </Button>
+                      </form>
+                    )}
+                  </>
+                )}
 
                 <div className="mt-5 rounded-lg border bg-background/70 p-4 text-sm text-muted-foreground">
                   <div className="mb-2 flex items-center gap-2 font-medium text-foreground">

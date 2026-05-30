@@ -56,5 +56,8 @@ export type MatchBreakdown = {
   signalScore: number;
   missingSkills: string[];
   matchedSkills: string[];
+  strengths: string[];
+  weaknesses: string[];
+  confidence: number;
   summary: string;
 };
