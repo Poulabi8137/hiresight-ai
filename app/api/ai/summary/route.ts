@@ -1,8 +1,8 @@
 import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
-import { candidates } from "@/lib/demo-data";
 import { extractKeywords, summarizeCandidate } from "@/lib/ai/scoring";
+import { getCandidate } from "@/lib/db";
 import { getAuthState } from "@/lib/auth";
 
 export async function POST(request: Request) {
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const candidate = candidates.find((item) => item.id === body.candidateId) ?? candidates[0];
+  const candidate = await getCandidate(body.candidateId);
   const transcript = String(body.transcript ?? candidate.summary);
 
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {

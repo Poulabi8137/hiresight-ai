@@ -42,7 +42,7 @@ export type Application = {
 export type UploadRecord = {
   id: string;
   ownerId: string;
-  kind: "resume" | "video_resume" | "interview";
+  kind: "resume" | "video_resume" | "interview" | "avatar";
   fileName: string;
   url: string;
   contentType: string;
@@ -56,5 +56,8 @@ export type MatchBreakdown = {
   signalScore: number;
   missingSkills: string[];
   matchedSkills: string[];
+  strengths: string[];
+  weaknesses: string[];
+  confidence: number;
   summary: string;
 };

@@ -1,18 +1,32 @@
-import { NextResponse } from "next/server";
-import { jobs } from "@/lib/demo-data";
+import { NextRequest, NextResponse } from "next/server";
 import { jobSchema } from "@/lib/validation";
-import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { getAuthState } from "@/lib/auth";
+import { listJobs, createJob } from "@/lib/db";
+import { parsePagination } from "@/lib/pagination";
+import { logger } from "@/lib/logger";
 
-export async function GET() {
-  const supabase = createServiceSupabaseClient();
-  if (!supabase) {
-    return NextResponse.json({ jobs, source: "demo" });
+export async function GET(request: NextRequest) {
+  const start = performance.now();
+  const searchParams = request.nextUrl.searchParams;
+  const { page, limit } = parsePagination({
+    page: Number(searchParams.get("page")) || undefined,
+    limit: Number(searchParams.get("limit")) || undefined
+  });
+  const search = searchParams.get("search") || undefined;
+  const skill = searchParams.get("skill") || undefined;
+  const mode = searchParams.get("mode") || undefined;
+
+  const { data, total, source } = await listJobs(page, limit, search, skill, mode);
+  const elapsed = performance.now() - start;
+  if (elapsed > 200) {
+    logger.warn("Slow jobs endpoint", { metadata: { elapsed: `${Math.round(elapsed)}ms`, source } });
   }
-
-  const { data, error } = await supabase.from("jobs").select("*").order("created_at", { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ jobs: data, source: "supabase" });
+  return NextResponse.json({
+    jobs: data, data,
+    pagination: { page, limit, total, hasMore: page * limit < total },
+    source,
+    timing: { elapsed: `${Math.round(elapsed)}ms` }
+  });
 }
 
 export async function POST(request: Request) {
@@ -27,18 +41,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid job payload", issues: parsed.error.flatten() }, { status: 400 });
   }
 
-  const supabase = createServiceSupabaseClient();
-  const record = {
-    ...parsed.data,
-    employer_id: body.employerId ?? "00000000-0000-0000-0000-000000000001",
-    status: "open"
-  };
-
-  if (!supabase) {
-    return NextResponse.json({ job: { id: `demo-${Date.now()}`, ...record }, source: "demo" }, { status: 201 });
-  }
-
-  const { data, error } = await supabase.from("jobs").insert(record).select("*").single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ job: data, source: "supabase" }, { status: 201 });
+  const { job, source } = await createJob({ ...parsed.data, employerId: body.employerId });
+  return NextResponse.json({ job, source }, { status: 201 });
 }

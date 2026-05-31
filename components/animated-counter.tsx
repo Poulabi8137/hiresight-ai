@@ -1,21 +1,31 @@
 "use client";
 
-import { motion, useMotionValue, useReducedMotion, useTransform, animate } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function AnimatedCounter({ value, suffix = "%" }: { value: number; suffix?: string }) {
-  const shouldReduceMotion = useReducedMotion();
-  const count = useMotionValue(0);
-  const rounded = useTransform(count, (latest) => `${Math.round(latest)}${suffix}`);
+  const [displayed, setDisplayed] = useState(0);
+  const startRef = useRef(0);
 
   useEffect(() => {
-    if (shouldReduceMotion) {
-      count.set(value);
-      return;
-    }
-    const controls = animate(count, value, { duration: 1.2, ease: [0.16, 1, 0.3, 1] });
-    return controls.stop;
-  }, [count, shouldReduceMotion, value]);
+    const diff = value - startRef.current;
+    if (diff === 0) return;
+    const duration = 200;
+    const step = Math.max(1, Math.ceil(Math.abs(diff) / (duration / 16)));
+    let current = startRef.current;
 
-  return <motion.span>{rounded}</motion.span>;
+    const timer = setInterval(() => {
+      current += Math.sign(diff) * step;
+      if (Math.abs(current - value) <= step) {
+        setDisplayed(value);
+        startRef.current = value;
+        clearInterval(timer);
+      } else {
+        setDisplayed(current);
+      }
+    }, 16);
+
+    return () => clearInterval(timer);
+  }, [value]);
+
+  return <span>{displayed}{suffix}</span>;
 }

@@ -1,63 +1,144 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   CheckCircle2,
   ChevronRight,
   FileText,
   Gauge,
-  Layers,
   MessageSquareText,
   Radar,
   ScanFace,
   Sparkles,
-  UserCheck,
   X,
-  Zap
+  Zap,
+  BarChart3,
+  Clock,
+  Target,
+  Users
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { applications, candidates, jobs } from "@/lib/demo-data";
+import type { Application, Candidate, Job } from "@/lib/types";
 import { scoreCandidate } from "@/lib/ai/scoring";
-import { useHireSightStore } from "@/lib/store";
-import { initials } from "@/lib/utils";
+import { useHireSightStore, useSelectedCandidateId } from "@/lib/store";
+import { fetchWithTimeout, initials } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/animated-counter";
 import { PremiumTiltCard } from "@/components/premium-tilt-card";
-import { VideoInterviewPlayer } from "@/components/video-interview-player";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { OnboardingWalkthrough } from "@/components/onboarding-walkthrough";
+import { toast } from "sonner";
+
+const PipelineBoard = dynamic(
+  () => import("@/components/pipeline-board").then((m) => m.PipelineBoard),
+  { ssr: false }
+);
+
+const VideoInterviewPlayer = dynamic(
+  () => import("@/components/video-interview-player").then((m) => m.VideoInterviewPlayer),
+  { ssr: false }
+);
+
+const AiMatchVisualization = dynamic(
+  () => import("@/components/ai-match-visualization").then((m) => m.AiMatchVisualization),
+  { ssr: false }
+);
 
 const stages = ["applied", "screening", "shortlisted", "interview", "offer"] as const;
 
+type FetchState<T> = {
+  data: T;
+  loading: boolean;
+  error: string | null;
+};
+
 export function RecruiterWorkspace() {
-  const { selectedCandidateId, setSelectedCandidateId } = useHireSightStore();
+  const selectedCandidateId = useSelectedCandidateId();
+  const setSelectedCandidateId = useHireSightStore((s) => s.setSelectedCandidateId);
   const [fullscreen, setFullscreen] = useState(false);
-  const [decisionState, setDecisionState] = useState<"idle" | "shortlisted" | "noted">("idle");
+  const [decisionState, setDecisionState] = useState<"idle" | "shortlisting" | "shortlisted" | "noting" | "noted">("idle");
+  const [noteInput, setNoteInput] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [notes, setNotes] = useState<{ id: string; note: string; createdAt: string }[]>([]);
   const shouldReduceMotion = useReducedMotion();
-  const selected = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? candidates[0];
-  const job = jobs[0];
-  const breakdown = scoreCandidate(selected, job);
+
+  const [candidates, setCandidates] = useState<FetchState<Candidate[]>>({ data: [], loading: true, error: null });
+  const [jobs, setJobs] = useState<FetchState<Job[]>>({ data: [], loading: true, error: null });
+  const [applications, setApplications] = useState<FetchState<Application[]>>({ data: [], loading: true, error: null });
+
+  const fetchAll = useCallback(async () => {
+    const results = await Promise.allSettled([
+      fetchWithTimeout("/api/candidates").then((r) => r.json()),
+      fetchWithTimeout("/api/jobs").then((r) => r.json()),
+      fetchWithTimeout("/api/applications").then((r) => r.json())
+    ]);
+
+    const [candResult, jobsResult, appsResult] = results;
+
+    if (candResult.status === "fulfilled" && candResult.value.candidates) {
+      setCandidates({ data: candResult.value.candidates, loading: false, error: null });
+    } else {
+      setCandidates({ data: [], loading: false, error: "Failed to load candidates." });
+    }
+
+    if (jobsResult.status === "fulfilled" && jobsResult.value.jobs) {
+      setJobs({ data: jobsResult.value.jobs, loading: false, error: null });
+    } else {
+      setJobs({ data: [], loading: false, error: "Failed to load jobs." });
+    }
+
+    if (appsResult.status === "fulfilled" && appsResult.value.applications) {
+      setApplications({ data: appsResult.value.applications, loading: false, error: null });
+    } else {
+      setApplications({ data: [], loading: false, error: "Failed to load applications." });
+    }
+  }, []);
+
+  useEffect(() => { void fetchAll();   }, [fetchAll]);
+
+  const loading = candidates.loading || jobs.loading || applications.loading;
+  const hasError = candidates.error || jobs.error || applications.error;
+  const primaryJob = jobs.data[0] ?? null;
+
+  const selected = useMemo(
+    () => candidates.data.find((c) => c.id === selectedCandidateId) ?? candidates.data[0] ?? null,
+    [candidates.data, selectedCandidateId]
+  );
+
+  useEffect(() => {
+    if (!selected?.id) return;
+    fetchWithTimeout(`/api/recruiter/notes?candidateId=${selected.id}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.notes) setNotes(data.notes); })
+      .catch(() => {});
+  }, [selected?.id]);
+
+  const breakdown = useMemo(
+    () => (selected && primaryJob ? scoreCandidate(selected, primaryJob) : null),
+    [selected, primaryJob]
+  );
 
   const rankedCandidates = useMemo(
     () =>
-      candidates
-        .map((candidate) => ({ candidate, match: scoreCandidate(candidate, job).score }))
+      candidates.data
+        .map((c) => ({ candidate: c, match: primaryJob ? scoreCandidate(c, primaryJob).score : 0 }))
         .sort((a, b) => b.match - a.match),
-    [job]
+    [candidates.data, primaryJob]
   );
 
   const stageCounts = useMemo(
     () =>
       stages.reduce(
         (acc, stage) => {
-          acc[stage] = applications.filter((app) => app.stage === stage).length;
+          acc[stage] = applications.data.filter((app) => app.stage === stage).length;
           return acc;
         },
         {} as Record<(typeof stages)[number], number>
       ),
-    []
+    [applications.data]
   );
 
   useEffect(() => {
@@ -74,21 +155,54 @@ export function RecruiterWorkspace() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  if (loading) {
+    return (
+      <main className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center cinematic-mesh">
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="mt-4 text-sm text-muted-foreground">Loading talent pipeline…</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <main className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center cinematic-mesh">
+        <div className="max-w-md text-center">
+          <p className="text-lg font-semibold text-destructive">Failed to load data</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {candidates.error ?? jobs.error ?? applications.error}
+          </p>
+          <Button className="mt-6" onClick={() => void fetchAll()}>
+            Retry
+          </Button>
+        </div>
+      </main>
+    );
+  }
+
+  if (candidates.data.length === 0) {
+    return (
+      <main className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center cinematic-mesh">
+        <div className="max-w-md text-center">
+          <Radar className="mx-auto h-12 w-12 text-muted-foreground" />
+          <h2 className="mt-4 text-2xl font-semibold">No candidates yet</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Candidates who complete their video profile and upload a resume will appear here.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="relative min-h-[calc(100vh-4rem)] overflow-hidden cinematic-mesh">
+    <>
+      <OnboardingWalkthrough role="recruiter" />
+      <main className="relative min-h-[calc(100vh-4rem)] overflow-hidden cinematic-mesh">
       <div className="pointer-events-none absolute inset-0 -z-10 opacity-40 [background-image:linear-gradient(rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] [background-size:48px_48px] dark:opacity-25" />
-      <motion.div
-        aria-hidden
-        animate={shouldReduceMotion ? undefined : { y: [0, -10, 0], opacity: [0.32, 0.55, 0.32] }}
-        transition={shouldReduceMotion ? undefined : { duration: 10, repeat: Infinity, ease: "easeInOut" }}
-        className="pointer-events-none absolute -left-32 top-16 -z-10 h-72 w-72 rounded-full bg-teal-400/15 blur-3xl"
-      />
-      <motion.div
-        aria-hidden
-        animate={shouldReduceMotion ? undefined : { y: [0, 12, 0], opacity: [0.22, 0.4, 0.22] }}
-        transition={shouldReduceMotion ? undefined : { duration: 12, repeat: Infinity, ease: "easeInOut" }}
-        className="pointer-events-none absolute -right-40 top-40 -z-10 h-80 w-80 rounded-full bg-orange-400/12 blur-3xl"
-      />
+      <div aria-hidden className="pointer-events-none absolute -left-32 top-16 -z-10 h-72 w-72 rounded-full bg-teal-400/15 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -right-40 top-40 -z-10 h-80 w-80 rounded-full bg-orange-400/12 blur-3xl" />
 
       <div className="container space-y-8 py-8 lg:py-10">
         <motion.header
@@ -109,36 +223,53 @@ export function RecruiterWorkspace() {
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            {[
-              ["Live queue", rankedCandidates.length, "candidates"],
-              ["Top match", breakdown.score, "%"],
-              ["Open role", job.title.split(" ")[0], job.company]
-            ].map(([label, value, suffix]) => (
-              <div key={label} className="glass rounded-xl px-4 py-3 text-center sm:px-5 sm:py-4">
+          <motion.div
+            initial={shouldReduceMotion ? undefined : { opacity: 0, y: 12 }}
+            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="grid grid-cols-4 gap-3 sm:gap-4"
+          >
+            {([
+              ["Candidates", rankedCandidates.length, "total", Users],
+              ["Top match", breakdown?.score ?? 0, "% match", Target],
+              ["Pipeline", applications.data.filter((a) => a.stage !== "offer").length, "active", BarChart3],
+              ["Avg score", Math.round(rankedCandidates.reduce((s, c) => s + c.match, 0) / Math.max(rankedCandidates.length, 1)), "%", Gauge]
+            ] as const).map(([label, value, suffix, Icon]) => (
+              <motion.div
+                key={label}
+                initial={shouldReduceMotion ? undefined : { opacity: 0, y: 16 }}
+                animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                whileHover={shouldReduceMotion ? undefined : { y: -3, transition: { duration: 0.2 } }}
+                className="glass rounded-xl px-3 py-3 text-center sm:px-4 sm:py-4 cursor-default"
+              >
+                <Icon className="mx-auto h-4 w-4 text-primary mb-1" />
                 <p className="section-kicker">{label}</p>
-                <p className="mt-1 font-display text-2xl font-semibold sm:text-3xl">
+                <p className="mt-0.5 font-display text-xl font-semibold sm:text-2xl">
                   {typeof value === "number" ? <AnimatedCounter value={value} /> : value}
-                  {typeof value === "number" && suffix === "%" ? "%" : null}
+                  {typeof value === "number" && suffix === "%" ? "%" : ""}
                 </p>
                 {suffix && suffix !== "%" ? (
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{suffix}</p>
+                  <p className="mt-0.5 text-2xs text-muted-foreground">{suffix}</p>
                 ) : null}
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </motion.header>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(280px,340px)_1fr]">
           <aside className="space-y-4 xl:sticky xl:top-[5.5rem] xl:self-start">
-            <div className="glass rounded-xl p-5">
-              <p className="section-kicker">Talent radar</p>
-              <p className="mt-2 text-sm text-muted-foreground">Ranked by role fit, communication, and experience depth.</p>
+          <div className="flex items-center gap-3 mb-3">
+            <ScanFace className="h-5 w-5 text-primary" />
+            <div>
+              <p className="text-sm font-medium">Talent radar</p>
+              <p className="text-xs text-muted-foreground">Ranked by role fit, communication, and experience.</p>
             </div>
+          </div>
 
             <div className="space-y-3">
               {rankedCandidates.map(({ candidate, match }, index) => {
-                const active = candidate.id === selected.id;
+                const active = candidate.id === selected?.id;
                 return (
                   <motion.button
                     key={candidate.id}
@@ -159,7 +290,7 @@ export function RecruiterWorkspace() {
                     ) : null}
                     <div className="flex items-center gap-3 pl-2">
                       <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-foreground font-display text-sm font-semibold text-background">
-                        {candidate.avatar}
+                        {initials(candidate.name)}
                         <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-teal-400 shadow-[0_0_14px_rgba(45,212,191,0.9)]" />
                       </span>
                       <div className="min-w-0 flex-1">
@@ -182,200 +313,222 @@ export function RecruiterWorkspace() {
             </div>
           </aside>
 
-          <section className="space-y-5">
-            <motion.div
-              layout
-              className="glass-dark overflow-hidden rounded-2xl ring-glow"
-            >
-              <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    key={`spotlight-video-${selected.id}`}
-                    initial={{ opacity: 0, filter: "blur(8px)", scale: 0.985 }}
-                    animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
-                    exit={{ opacity: 0, filter: "blur(8px)", scale: 0.99 }}
-                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                    className="relative"
-                  >
-                    <VideoInterviewPlayer
-                      src={selected.videoUrl ?? "/demo-videos/strong-ai-interview.mp4"}
-                      candidateName={selected.name}
-                      candidateInitials={initials(selected.name)}
-                      className="min-h-[320px] lg:min-h-[520px]"
-                      onCinemaMode={() => setFullscreen(true)}
-                    />
-                  </motion.div>
-                </AnimatePresence>
-
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    key={selected.id}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -16 }}
-                    transition={{ duration: 0.35 }}
-                    className="flex flex-col justify-between border-t border-white/10 p-6 sm:p-8 lg:border-l lg:border-t-0"
-                  >
-                    <div>
-                      <p className="text-sm text-white/50">{selected.location}</p>
-                      <h2 className="font-display mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{selected.name}</h2>
-                      <p className="mt-1 text-white/65">{selected.title}</p>
-
-                      <div className="mt-6 flex items-center gap-5">
-                        <MatchRing score={breakdown.score} />
-                        <p className="text-sm leading-7 text-white/72">{breakdown.summary}</p>
-                      </div>
-
-                      <div className="mt-8 space-y-4">
-                        {[
-                          ["Skill overlap", breakdown.skillScore, Gauge],
-                          ["Experience relevance", breakdown.experienceScore, FileText],
-                          ["Video signal strength", breakdown.signalScore, ScanFace]
-                        ].map(([label, value, Icon], index) => (
-                          <motion.div
-                            key={String(label)}
-                            initial={{ opacity: 0, y: 12 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.06 + index * 0.08 }}
-                          >
-                            <Signal label={String(label)} value={Number(value)} icon={Icon as LucideIcon} inverted />
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="mt-8">
-                      <div className="flex flex-wrap gap-2">
-                        {selected.skills.map((skill) => (
-                          <span
-                            key={skill}
-                            className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-xs text-white/78"
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="mt-6 grid grid-cols-2 gap-3">
-                        <Button
-                          className={`bg-teal-400 text-slate-950 hover:bg-teal-300 ${decisionState === "shortlisted" ? "animate-pulse-glow" : ""}`}
-                          onClick={() => {
-                            setDecisionState("shortlisted");
-                            setFeedback("Candidate added to shortlist.");
-                          }}
-                        >
-                          <CheckCircle2 className="h-4 w-4" />
-                          {decisionState === "shortlisted" ? "Shortlisted" : "Shortlist"}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="border-white/15 bg-white/[0.06] text-white hover:bg-white/10"
-                          onClick={() => {
-                            setDecisionState("noted");
-                            setFeedback("Recruiter note saved.");
-                          }}
-                        >
-                          <MessageSquareText className="h-4 w-4" />
-                          {decisionState === "noted" ? "Note saved" : "Add note"}
-                        </Button>
-                      </div>
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-            </motion.div>
-
-            <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-              <div className="glass rounded-2xl p-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <Badge className="bg-background/70">
-                      <UserCheck className="mr-1 h-3.5 w-3.5" />
-                      Hiring pipeline
-                    </Badge>
-                    <h2 className="heading-display mt-3 text-2xl">Stage-aware motion board</h2>
-                  </div>
-                  <Button>
-                    <Sparkles className="h-4 w-4" />
-                    Generate shortlist
-                  </Button>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Layers className="h-3.5 w-3.5 text-primary" />
-                  Drag-and-drop board coming next — this view is optimized for cinematic review.
-                </div>
-
-                <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                  {stages.map((stage, index) => (
+          {selected && breakdown ? (
+            <section className="space-y-5">
+              <motion.div layout className="glass-dark overflow-hidden rounded-2xl ring-glow">
+                <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
+                  <AnimatePresence mode="wait" initial={false}>
                     <motion.div
-                      key={stage}
-                      initial={{ opacity: 0, y: 14 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: index * 0.04 }}
-                      className="flex min-h-40 flex-col rounded-xl border border-border/70 bg-background/55 p-3 backdrop-blur"
+                      key={`spotlight-video-${selected.id}`}
+                      initial={{ opacity: 0, filter: "blur(8px)", scale: 0.985 }}
+                      animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
+                      exit={{ opacity: 0, filter: "blur(8px)", scale: 0.99 }}
+                      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                      className="relative"
                     >
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium capitalize">{stage}</p>
-                        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
-                          {stageCounts[stage]}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex-1 space-y-2">
-                        {applications
-                          .filter((application) => application.stage === stage)
-                          .map((application) => {
-                            const candidate = candidates.find((item) => item.id === application.candidateId);
-                            return (
-                              <div
-                                key={application.id}
-                                className="rounded-lg bg-foreground px-3 py-2 text-xs text-background shadow-glow"
-                              >
-                                {candidate?.name}
-                                <span className="block text-background/65">{application.matchScore}% match</span>
+                      <VideoInterviewPlayer
+                        src={selected.videoUrl ?? "/demo-videos/strong-ai-interview.mp4"}
+                        candidateName={selected.name}
+                        candidateInitials={initials(selected.name)}
+                        className="min-h-[320px] lg:min-h-[520px]"
+                        onCinemaMode={() => setFullscreen(true)}
+                      />
+                    </motion.div>
+                  </AnimatePresence>
+
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                      key={selected.id}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -16 }}
+                      transition={{ duration: 0.35 }}
+                      className="flex flex-col justify-between border-t border-white/10 p-6 sm:p-8 lg:border-l lg:border-t-0"
+                    >
+                      <div>
+                        <p className="text-sm text-white/50">{selected.location}</p>
+                        <h2 className="font-display mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{selected.name}</h2>
+                        <p className="mt-1 text-white/65">{selected.title}</p>
+
+                        <div className="mt-6 flex items-center gap-5">
+                          <MatchRing score={breakdown.score} />
+                          <p className="text-sm leading-7 text-white/72">{breakdown.summary}</p>
+                        </div>
+
+                        <div className="mt-8 space-y-4">
+                          {[
+                            ["Skill overlap", breakdown.skillScore, Gauge],
+                            ["Experience relevance", breakdown.experienceScore, FileText],
+                            ["Video signal strength", breakdown.signalScore, ScanFace]
+                          ].map(([label, value, Icon], index) => (
+                            <motion.div
+                              key={String(label)}
+                              initial={{ opacity: 0, y: 12 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.06 + index * 0.08 }}
+                            >
+                              <Signal label={String(label)} value={Number(value)} icon={Icon as LucideIcon} inverted />
+                            </motion.div>
+                          ))}
+                        </div>
+                        </div>
+
+                      {notes.length > 0 && (
+                        <div className="mt-6 space-y-2">
+                          <p className="text-xs font-medium text-white/50">Notes</p>
+                          {notes.map((n) => (
+                            <div key={n.id} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
+                              <p className="text-xs text-white/80">{n.note}</p>
+                              <p className="mt-1 text-2xs text-white/40">{new Date(n.createdAt).toLocaleDateString()}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="mt-8">
+                        <div className="flex flex-wrap gap-2">
+                          {selected.skills.map((skill) => (
+                            <span
+                              key={skill}
+                              className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-xs text-white/78"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-6 grid grid-cols-2 gap-3">
+                          <Button
+                            disabled={decisionState === "shortlisting"}
+                            className={`bg-teal-400 text-slate-950 hover:bg-teal-300 ${decisionState === "shortlisted" ? "animate-pulse-glow" : ""}`}
+                            onClick={async () => {
+                              const app = applications.data.find((a) => a.candidateId === selected.id);
+                              if (!app) return;
+                              setDecisionState("shortlisting");
+                              try {
+                                const res = await fetchWithTimeout("/api/applications", {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ applicationId: app.id, stage: "shortlisted" })
+                                });
+                                if (res.ok) {
+                                  setDecisionState("shortlisted");
+                                  setFeedback("Candidate shortlisted.");
+                                  toast.success("Candidate shortlisted successfully");
+                                  void fetchAll();
+                                } else {
+                                  setDecisionState("idle");
+                                  setFeedback("Failed to update stage.");
+                                  toast.error("Failed to shortlist candidate");
+                                }
+                              } catch {
+                                setDecisionState("idle");
+                                setFeedback("Network error.");
+                                toast.error("Network error while shortlisting");
+                              }
+                            }}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            {decisionState === "shortlisting" ? "Updating…" : decisionState === "shortlisted" ? "Shortlisted" : "Shortlist"}
+                          </Button>
+                          {decisionState !== "noting" && decisionState !== "noted" ? (
+                            <Button
+                              variant="outline"
+                              className="border-white/15 bg-white/[0.06] text-white hover:bg-white/10"
+                              onClick={() => setDecisionState("noting")}
+                            >
+                              <MessageSquareText className="h-4 w-4" />
+                              Add note
+                            </Button>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              <textarea
+                                value={noteInput}
+                                onChange={(e) => setNoteInput(e.target.value)}
+                                placeholder="Type a note…"
+                                rows={2}
+                                className="w-full rounded-lg border border-white/15 bg-white/[0.06] px-3 py-2 text-xs text-white placeholder-white/40 backdrop-blur focus:outline-none focus:ring-1 focus:ring-teal-400"
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="bg-teal-400 text-xs text-slate-950 hover:bg-teal-300"
+                                  disabled={!noteInput.trim()}
+                                  onClick={async () => {
+                                    if (!noteInput.trim()) return;
+                                    try {
+                                      const res = await fetchWithTimeout("/api/recruiter/notes", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ candidateId: selected.id, note: noteInput.trim() })
+                                      });
+                                      if (res.ok) {
+                                        setDecisionState("noted");
+                                        setFeedback("Note saved.");
+                                        toast.success("Note saved");
+                                        setNoteInput("");
+                                      } else {
+                                        setFeedback("Failed to save note.");
+                                        toast.error("Failed to save note");
+                                      }
+                                    } catch {
+                                      setFeedback("Network error.");
+                                      toast.error("Network error while saving note");
+                                    }
+                                  }}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-white/15 text-xs text-white hover:bg-white/10"
+                                  onClick={() => {
+                                    setDecisionState("idle");
+                                    setNoteInput("");
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
                               </div>
-                            );
-                          })}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
-                  ))}
+                  </AnimatePresence>
                 </div>
-              </div>
+              </motion.div>
 
-              <PremiumTiltCard className="h-full">
-                <div className="glass relative overflow-hidden rounded-2xl p-6">
-                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-400 via-white to-orange-400" />
-                  <MessageSquareText className="h-6 w-6 text-primary" />
-                  <h2 className="heading-display mt-4 text-2xl">AI recruiter brief</h2>
-                  <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                    Prioritize Marcus for systems depth, Ava for product motion polish, and Zoya for customer-facing storytelling.
-                    Review communication cadence before panel scheduling.
-                  </p>
-                  <div className="mt-5 space-y-2">
-                    {["Ask about production ownership", "Compare async communication", "Review stakeholder examples"].map(
-                      (item, index) => (
-                        <motion.div
-                          key={item}
-                          initial={{ opacity: 0, x: 18 }}
-                          whileInView={{ opacity: 1, x: 0 }}
-                          viewport={{ once: true }}
-                          transition={{ delay: index * 0.06 }}
-                          className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/60 px-3 py-2.5 text-sm"
-                        >
-                          <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-                          {item}
-                        </motion.div>
-                      )
-                    )}
-                  </div>
-                </div>
-              </PremiumTiltCard>
-            </div>
-          </section>
+              <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+                <PipelineBoard
+                  candidates={candidates.data}
+                  applications={applications.data}
+                  stageCounts={stageCounts}
+                  onRefresh={fetchAll}
+                />
+
+                {selected && breakdown ? (
+                  <AiMatchVisualization breakdown={breakdown} />
+                ) : (
+                  <PremiumTiltCard className="h-full">
+                    <div className="glass relative overflow-hidden rounded-2xl p-6">
+                      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-400 via-white to-orange-400" />
+                      <MessageSquareText className="h-6 w-6 text-primary" />
+                      <h2 className="heading-display mt-4 text-2xl">AI recruiter brief</h2>
+                      <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                        Select a candidate to see their AI match analysis.
+                      </p>
+                    </div>
+                  </PremiumTiltCard>
+                )}
+              </div>
+            </section>
+          ) : null}
         </div>
       </div>
 
       <AnimatePresence>
-        {fullscreen ? (
+        {fullscreen && selected ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -418,7 +571,7 @@ export function RecruiterWorkspace() {
                     <p>Recommended next step: structured technical panel.</p>
                   </div>
                   <div className="mt-6 space-y-3">
-                    <Signal label="Panel readiness" value={breakdown.score} icon={Sparkles} inverted />
+                    <Signal label="Panel readiness" value={breakdown?.score ?? 0} icon={Sparkles} inverted />
                     <Signal label="Communication" value={selected.communication} icon={ScanFace} inverted />
                   </div>
                 </div>
@@ -448,6 +601,7 @@ export function RecruiterWorkspace() {
         ) : null}
       </AnimatePresence>
     </main>
+    </>
   );
 }
 

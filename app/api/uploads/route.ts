@@ -2,11 +2,22 @@ import { NextResponse } from "next/server";
 import { uploadRequestSchema } from "@/lib/validation";
 import { getAuthState } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { listUploads } from "@/lib/db";
 
 const maxBytes = 250 * 1024 * 1024;
 
-function bucketForKind(kind: "resume" | "video_resume" | "interview") {
-  return kind === "resume" ? "resumes" : "videos";
+function bucketForKind(kind: "resume" | "video_resume" | "interview" | "avatar") {
+  if (kind === "resume") return "resumes";
+  if (kind === "avatar") return "avatars";
+  return "videos";
+}
+
+export async function GET() {
+  const auth = await getAuthState();
+  if (!auth) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
+
+  const { data, source } = await listUploads(auth.userId);
+  return NextResponse.json({ uploads: data, source });
 }
 
 export async function POST(request: Request) {
@@ -28,7 +39,8 @@ export async function POST(request: Request) {
   const storagePath =
     parsed.data.storagePath ??
     `${auth.userId}/${parsed.data.kind}/${Date.now()}-${parsed.data.fileName.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-  const url = parsed.data.signedUrl ?? `supabase://${bucket}/${storagePath}`;
+  // Durable references only. Never store an expiring signed URL.
+  const url = `supabase://${bucket}/${storagePath}`;
 
   const record = {
     owner_id: auth.userId,

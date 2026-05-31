@@ -4,7 +4,7 @@ create type public.user_role as enum ('candidate', 'recruiter');
 create type public.job_mode as enum ('Remote', 'Hybrid', 'Onsite');
 create type public.job_status as enum ('open', 'paused', 'closed');
 create type public.application_stage as enum ('applied', 'screening', 'shortlisted', 'interview', 'offer', 'rejected');
-create type public.upload_kind as enum ('resume', 'video_resume', 'interview');
+create type public.upload_kind as enum ('resume', 'video_resume', 'interview', 'avatar');
 
 create table public.users (
   id uuid primary key references auth.users(id) on delete cascade,

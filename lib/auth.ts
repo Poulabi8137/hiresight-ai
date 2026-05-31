@@ -12,6 +12,16 @@ export type AuthState = {
 
 const demoCookie = "hiresight_demo_role";
 
+function isSupabaseConfigured() {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
+function isDemoAuthEnabled() {
+  // Demo mode is useful for judges/local runs, but it must not silently bypass Supabase auth.
+  // Enable explicitly with HIRESIGHT_DEMO_AUTH=true.
+  return process.env.HIRESIGHT_DEMO_AUTH === "true";
+}
+
 export function setDemoSessionCookie(role: Role) {
   cookies().set(demoCookie, role, {
     httpOnly: true,
@@ -30,26 +40,35 @@ export function getDemoSessionRole(): Role | null {
 export async function getAuthState(): Promise<AuthState | null> {
   const supabase = createServerSupabaseClient();
   if (supabase) {
-    const { data } = await supabase.auth.getUser();
-    if (data.user) {
-      const metadataRole = data.user.user_metadata?.role;
-      const { data: profile } = await supabase
-        .from("users")
-        .select("role,email")
-        .eq("id", data.user.id)
-        .maybeSingle();
+    try {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        const metadataRole = data.user.user_metadata?.role;
+        const { data: profile } = await supabase
+          .from("users")
+          .select("role,email")
+          .eq("id", data.user.id)
+          .maybeSingle();
 
-      const role = profile?.role ?? metadataRole;
-      if (role === "candidate" || role === "recruiter") {
-        return {
-          userId: data.user.id,
-          role,
-          email: profile?.email ?? data.user.email,
-          source: "supabase"
-        };
+        const role = profile?.role ?? metadataRole;
+        if (role === "candidate" || role === "recruiter") {
+          return {
+            userId: data.user.id,
+            role,
+            email: profile?.email ?? data.user.email,
+            source: "supabase"
+          };
+        }
       }
+    } catch {
+      // Supabase unreachable — fall through to demo if enabled
     }
+    // Supabase is configured but there is no valid session.
+    // Do not fall back to demo cookies unless explicitly enabled.
+    if (isSupabaseConfigured() && !isDemoAuthEnabled()) return null;
   }
+
+  if (!isDemoAuthEnabled()) return null;
 
   const demoRole = getDemoSessionRole();
   if (!demoRole) return null;

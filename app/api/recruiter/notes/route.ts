@@ -1,30 +1,49 @@
-import { NextResponse } from "next/server";
-import { createServiceSupabaseClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getAuthState } from "@/lib/auth";
+import { listNotes, createNote } from "@/lib/db";
+import { handleError, apiError, validate } from "@/lib/api-error";
+
+const noteSchema = z.object({
+  candidateId: z.string().min(1),
+  note: z.string().min(1).max(4000)
+});
+
+export async function GET(request: NextRequest) {
+  try {
+    const auth = await getAuthState();
+    if (!auth || auth.role !== "recruiter") {
+      return apiError("Recruiter authentication is required.", 401);
+    }
+
+    const candidateId = request.nextUrl.searchParams.get("candidateId");
+    if (!candidateId) return apiError("candidateId query parameter is required.", 400);
+
+    const notes = await listNotes(candidateId);
+    return NextResponse.json({ notes, source: "supabase" });
+  } catch (e) {
+    return handleError(e);
+  }
+}
 
 export async function POST(request: Request) {
-  const auth = await getAuthState();
-  if (!auth || auth.role !== "recruiter") {
-    return NextResponse.json({ error: "Recruiter authentication is required." }, { status: 401 });
+  try {
+    const auth = await getAuthState();
+    if (!auth || auth.role !== "recruiter") {
+      return apiError("Recruiter authentication is required.", 401);
+    }
+
+    const body = await request.json();
+    const parsed = validate(noteSchema, body);
+
+    const { source } = await createNote({
+      candidateId: parsed.candidateId,
+      recruiterId: auth.userId,
+      note: parsed.note
+    });
+
+    return NextResponse.json({ note: { candidateId: parsed.candidateId, note: parsed.note }, source }, { status: 201 });
+  } catch (e) {
+    return handleError(e);
   }
-
-  const body = await request.json();
-  if (!body.candidateId || !body.note) {
-    return NextResponse.json({ error: "candidateId and note are required" }, { status: 400 });
-  }
-
-  const record = {
-    candidate_id: body.candidateId,
-    recruiter_id: auth.userId,
-    note: String(body.note).slice(0, 4000)
-  };
-
-  const supabase = createServiceSupabaseClient();
-  if (!supabase) {
-    return NextResponse.json({ note: { id: `demo-${Date.now()}`, ...record }, source: "demo" }, { status: 201 });
-  }
-
-  const { data, error } = await supabase.from("recruiter_notes").insert(record).select("*").single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ note: data, source: "supabase" }, { status: 201 });
 }
