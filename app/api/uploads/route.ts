@@ -3,6 +3,7 @@ import { uploadRequestSchema } from "@/lib/validation";
 import { getAuthState } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listUploads } from "@/lib/db";
+import { assertCSRF } from "@/lib/csrf";
 
 const maxBytes = 250 * 1024 * 1024;
 
@@ -21,6 +22,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const body = await request.json();
   const parsed = uploadRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
   const supabase = createServerSupabaseClient();
   if (supabase && auth.source === "supabase") {
     const { data, error } = await supabase.from("uploads").insert(record).select("*").single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: "Failed to record upload metadata." }, { status: 500 });
     return NextResponse.json({ upload: data, source: "supabase" }, { status: 201 });
   }
 

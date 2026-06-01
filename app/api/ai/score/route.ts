@@ -3,8 +3,10 @@ import { scoreCandidate } from "@/lib/ai/scoring";
 import { getCandidate, getJob, getCachedScore, cacheScore } from "@/lib/db";
 import { getAuthState } from "@/lib/auth";
 import { logger, generateRequestId } from "@/lib/logger";
+import { assertCSRF } from "@/lib/csrf";
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const requestId = generateRequestId();
   const auth = await getAuthState();
   if (!auth) {

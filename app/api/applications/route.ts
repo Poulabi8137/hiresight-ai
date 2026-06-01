@@ -6,6 +6,7 @@ import { getAuthState } from "@/lib/auth";
 import { listApplications, createApplication, updateApplicationStage, getCandidate, getJob } from "@/lib/db";
 import { parsePagination } from "@/lib/pagination";
 import { logger } from "@/lib/logger";
+import { assertCSRF } from "@/lib/csrf";
 
 export async function GET(request: NextRequest) {
   const start = performance.now();
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
     limit: Number(searchParams.get("limit")) || undefined
   });
 
-  const { data, total, source } = await listApplications(page, limit);
+  const { data, total, source } = await listApplications(page, limit, auth.userId, auth.role);
   const elapsed = performance.now() - start;
   if (elapsed > 200) {
     logger.warn("Slow applications endpoint", { metadata: { elapsed: `${Math.round(elapsed)}ms` } });
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const start = performance.now();
   const auth = await getAuthState();
   if (!auth || auth.role !== "candidate") {
@@ -71,6 +73,7 @@ const stageSchema = z.object({
 });
 
 export async function PATCH(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const start = performance.now();
   const auth = await getAuthState();
   if (!auth || auth.role !== "recruiter") {

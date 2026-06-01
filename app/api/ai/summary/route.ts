@@ -4,8 +4,10 @@ import { NextResponse } from "next/server";
 import { extractKeywords, summarizeCandidate } from "@/lib/ai/scoring";
 import { getCandidate } from "@/lib/db";
 import { getAuthState } from "@/lib/auth";
+import { assertCSRF } from "@/lib/csrf";
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const auth = await getAuthState();
   if (!auth) {
     return NextResponse.json({ error: "Authentication is required for AI summaries." }, { status: 401 });

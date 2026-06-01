@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAuthState } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { enqueueResumeParse } from "@/lib/jobs";
+import { assertCSRF } from "@/lib/csrf";
 
 export const runtime = "nodejs";
 
@@ -41,6 +42,7 @@ function sanitizeFileName(name: string) {
 }
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const auth = await getAuthState();
   if (!auth) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
 
@@ -119,7 +121,7 @@ export async function POST(request: Request) {
   }
 
   if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    return NextResponse.json({ error: "File upload to storage failed." }, { status: 500 });
   }
 
   const durableUrl = `supabase://${bucket}/${storagePath}`;
@@ -137,13 +139,10 @@ export async function POST(request: Request) {
   let uploadRow: any = null;
   try {
     const { data, error: insertError } = await supabase.from("uploads").insert(record).select("*").single();
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+    if (insertError) return NextResponse.json({ error: "Failed to record upload metadata." }, { status: 500 });
     uploadRow = data;
-  } catch (e) {
-    return NextResponse.json({
-      error: e instanceof Error ? e.message : "Database insert failed.",
-      partial: { bucket, path: storagePath }
-    }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Failed to record upload metadata." }, { status: 500 });
   }
 
   // Best-effort persistence onto profile tables (when present). We never store signed URLs here.

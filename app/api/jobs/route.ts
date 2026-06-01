@@ -4,6 +4,7 @@ import { getAuthState } from "@/lib/auth";
 import { listJobs, createJob } from "@/lib/db";
 import { parsePagination } from "@/lib/pagination";
 import { logger } from "@/lib/logger";
+import { assertCSRF } from "@/lib/csrf";
 
 export async function GET(request: NextRequest) {
   const start = performance.now();
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const auth = await getAuthState();
   if (!auth || auth.role !== "recruiter") {
     return NextResponse.json({ error: "Recruiter authentication is required to post jobs." }, { status: 401 });

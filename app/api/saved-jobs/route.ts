@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAuthState } from "@/lib/auth";
 import { listSavedJobs, saveJob, unsaveJob } from "@/lib/db";
 import { handleError, apiError, validate } from "@/lib/api-error";
+import { assertCSRF } from "@/lib/csrf";
 
 const jobIdSchema = z.object({ jobId: z.string().min(1) });
 
@@ -21,6 +22,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const csrf = assertCSRF(request); if (csrf) return csrf;
     const auth = await getAuthState();
     if (!auth || auth.role !== "candidate") {
       return apiError("Candidate authentication is required.", 401);
@@ -36,6 +38,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const csrf = assertCSRF(request); if (csrf) return csrf;
     const auth = await getAuthState();
     if (!auth || auth.role !== "candidate") {
       return apiError("Candidate authentication is required.", 401);

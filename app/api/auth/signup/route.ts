@@ -1,15 +1,27 @@
 import { NextResponse } from "next/server";
 import { authSchema } from "@/lib/validation";
 import { createServerSupabaseClient, createServiceSupabaseClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { assertCSRF } from "@/lib/csrf";
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
+  const rlKey = rateLimitKey(request);
+  const rl = await checkRateLimit(`signup:${rlKey}`);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many signup attempts from this IP. Please wait before trying again." },
+      { status: 429 }
+    );
+  }
+
   const payload = await request.json();
   const parsed = authSchema.safeParse(payload);
 
   if (!parsed.success) {
     logger.warn("auth: signup invalid payload", { metadata: { issues: parsed.error.flatten() } });
-    return NextResponse.json({ error: "Invalid payload", issues: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
   const { email, password, role } = parsed.data;
@@ -78,7 +90,7 @@ export async function POST(request: Request) {
 
   if (result.error) {
     logger.error("auth: signUp failed", { metadata: { error: result.error.message, email, role } });
-    return NextResponse.json({ error: result.error.message }, { status: 401 });
+    return NextResponse.json({ error: "Account creation failed. Please try again later." }, { status: 401 });
   }
 
   const identityCount = result.data.user?.identities?.length ?? 0;

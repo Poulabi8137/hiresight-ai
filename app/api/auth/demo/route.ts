@@ -3,8 +3,10 @@ import { authSchema } from "@/lib/validation";
 import { setDemoSessionCookie } from "@/lib/auth";
 import { createServerSupabaseClient, createServiceSupabaseClient } from "@/lib/supabase/server";
 import { logger } from "@/lib/logger";
+import { assertCSRF } from "@/lib/csrf";
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const payload = await request.json();
   const parsed = authSchema.safeParse(payload);
 

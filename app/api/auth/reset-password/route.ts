@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { assertCSRF } from "@/lib/csrf";
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
+  const rlKey = rateLimitKey(request);
+  const rl = await checkRateLimit(`reset-pw:${rlKey}`);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many password reset requests. Please wait before trying again." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+    );
+  }
+
   const { email } = await request.json();
 
   if (!email || typeof email !== "string") {
@@ -20,7 +32,7 @@ export async function POST(request: Request) {
 
   if (error) {
     logger.error("auth: reset password failed", { metadata: { error: error.message, email } });
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: "Unable to process password reset." }, { status: 400 });
   }
 
   logger.info("auth: reset password email sent", { metadata: { email } });

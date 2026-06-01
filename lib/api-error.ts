@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import type { ZodSchema } from "zod";
+import { logger } from "@/lib/logger";
 
 export function apiError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
 export function apiBadRequest(issues: Record<string, unknown>) {
-  return NextResponse.json({ error: "Invalid request payload.", issues }, { status: 400 });
+  return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
 }
 
 export function validate<T>(schema: ZodSchema<T>, data: unknown): T {
@@ -30,5 +31,6 @@ export function handleError(error: unknown): NextResponse {
     return apiBadRequest(error.issues);
   }
   const message = error instanceof Error ? error.message : "Internal server error";
-  return apiError(message, 500);
+  logger.error("Unhandled error returned as 500", { metadata: { error: message } });
+  return apiError("An unexpected error occurred. Please try again later.", 500);
 }

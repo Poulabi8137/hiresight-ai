@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { authSchema } from "@/lib/validation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { logger } from "@/lib/logger";
+import { assertCSRF } from "@/lib/csrf";
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const payload = await request.json();
   const parsed = authSchema.safeParse(payload);
 
@@ -27,16 +29,8 @@ export async function POST(request: Request) {
     const errMsg = result.error.message;
     logger.error("auth: signInWithPassword failed", { metadata: { error: errMsg, email } });
 
-    const isEmailNotConfirmed =
-      errMsg.toLowerCase().includes("invalid login credentials") ||
-      errMsg.toLowerCase().includes("email not confirmed");
-
     return NextResponse.json(
-      {
-        error: isEmailNotConfirmed
-          ? "This account requires email confirmation. Please check your inbox for a confirmation link."
-          : errMsg
-      },
+      { error: "Invalid email or password. Please check your credentials and try again." },
       { status: 401 }
     );
   }

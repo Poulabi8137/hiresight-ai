@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAuthState } from "@/lib/auth";
 import { listNotes, createNote } from "@/lib/db";
 import { handleError, apiError, validate } from "@/lib/api-error";
+import { assertCSRF } from "@/lib/csrf";
 
 const noteSchema = z.object({
   candidateId: z.string().min(1),
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
+    const csrf = assertCSRF(request); if (csrf) return csrf;
     const auth = await getAuthState();
     if (!auth || auth.role !== "recruiter") {
       return apiError("Recruiter authentication is required.", 401);

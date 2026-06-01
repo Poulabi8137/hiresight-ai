@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { assertCSRF } from "@/lib/csrf";
 
 const demoCookie = "hiresight_demo_role";
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const supabase = createServerSupabaseClient();
   if (supabase) {
     await supabase.auth.signOut();

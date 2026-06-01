@@ -231,16 +231,42 @@ export async function createJob(input: {
 }
 
 // ---------------------------------------------------------------------------
-// Applications
+// Applications — user-scoped access
 // ---------------------------------------------------------------------------
 
-export async function listApplications(page = 1, limit = 20): Promise<{ data: Application[]; total: number; source: "supabase" | "demo" }> {
+export async function listApplications(
+  page = 1,
+  limit = 20,
+  userId?: string,
+  role?: "candidate" | "recruiter"
+): Promise<{ data: Application[]; total: number; source: "supabase" | "demo" }> {
   const offset = (page - 1) * limit;
   const supabase = getClient();
   if (!supabase) return { data: fallbackApplications, total: fallbackApplications.length, source: "demo" };
   try {
-    const { data, error, count } = await supabase
-      .from("applications").select("*", { count: "exact" }).order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+    let query = supabase.from("applications").select("*", { count: "exact" });
+
+    // Scope by the requesting user
+    if (userId && role === "candidate") {
+      // Candidates see only their own applications, resolved via candidates.user_id
+      query = query.in(
+        "candidate_id",
+        supabase.from("candidates").select("id").eq("user_id", userId)
+      );
+    } else if (userId && role === "recruiter") {
+      // Recruiters see applications for jobs they own (via employers.owner_id)
+      query = query.in(
+        "job_id",
+        supabase.from("jobs")
+          .select("id")
+          .in("employer_id", supabase.from("employers").select("id").eq("owner_id", userId))
+      );
+    }
+
+    const { data, error, count } = await query
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
     if (error) return { data: fallbackApplications, total: fallbackApplications.length, source: "demo" };
     return { data: (data ?? []).map(normalizeApplication), total: count ?? data?.length ?? 0, source: "supabase" };
   } catch {

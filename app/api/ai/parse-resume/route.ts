@@ -4,10 +4,12 @@ import { NextResponse } from "next/server";
 import { getAuthState } from "@/lib/auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { saveParsedResume } from "@/lib/db";
+import { assertCSRF } from "@/lib/csrf";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const csrf = assertCSRF(request); if (csrf) return csrf;
   const auth = await getAuthState();
   if (!auth || auth.role !== "candidate") {
     return NextResponse.json({ error: "Candidate authentication is required." }, { status: 401 });
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
     .download(path);
 
   if (downloadError || !fileData) {
-    return NextResponse.json({ error: downloadError?.message ?? "Failed to download file." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to download file from storage." }, { status: 500 });
   }
 
   // Extract text using Gemini
