@@ -246,21 +246,36 @@ export async function listApplications(
   try {
     let query = supabase.from("applications").select("*", { count: "exact" });
 
-    // Scope by the requesting user
     if (userId && role === "candidate") {
-      // Candidates see only their own applications, resolved via candidates.user_id
-      query = query.in(
-        "candidate_id",
-        supabase.from("candidates").select("id").eq("user_id", userId)
-      );
+      const { data: candidates } = await supabase
+        .from("candidates")
+        .select("id")
+        .eq("user_id", userId);
+      const candidateIds = candidates?.map((c: { id: string }) => c.id) ?? [];
+      if (candidateIds.length > 0) {
+        query = query.in("candidate_id", candidateIds);
+      } else {
+        return { data: [], total: 0, source: "supabase" };
+      }
     } else if (userId && role === "recruiter") {
-      // Recruiters see applications for jobs they own (via employers.owner_id)
-      query = query.in(
-        "job_id",
-        supabase.from("jobs")
-          .select("id")
-          .in("employer_id", supabase.from("employers").select("id").eq("owner_id", userId))
-      );
+      const { data: employers } = await supabase
+        .from("employers")
+        .select("id")
+        .eq("owner_id", userId);
+      const employerIds = employers?.map((e: { id: string }) => e.id) ?? [];
+      if (employerIds.length === 0) {
+        return { data: [], total: 0, source: "supabase" };
+      }
+      const { data: jobs } = await supabase
+        .from("jobs")
+        .select("id")
+        .in("employer_id", employerIds);
+      const jobIds = jobs?.map((j: { id: string }) => j.id) ?? [];
+      if (jobIds.length > 0) {
+        query = query.in("job_id", jobIds);
+      } else {
+        return { data: [], total: 0, source: "supabase" };
+      }
     }
 
     const { data, error, count } = await query

@@ -7,7 +7,7 @@ export function apiError(message: string, status: number) {
 }
 
 export function apiBadRequest(issues: Record<string, unknown>) {
-  return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
+  return NextResponse.json({ error: "Invalid request payload.", issues }, { status: 400 });
 }
 
 export function validate<T>(schema: ZodSchema<T>, data: unknown): T {
@@ -32,5 +32,5 @@ export function handleError(error: unknown): NextResponse {
   }
   const message = error instanceof Error ? error.message : "Internal server error";
   logger.error("Unhandled error returned as 500", { metadata: { error: message } });
-  return apiError("An unexpected error occurred. Please try again later.", 500);
+  return apiError(message, 500);
 }

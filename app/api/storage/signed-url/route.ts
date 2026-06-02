@@ -26,23 +26,35 @@ async function recruiterCanAccessUser(
   targetUserId: string
 ): Promise<boolean> {
   // The recruiter must own a job that has an application from this candidate.
+  const { data: employerRows, error: employerError } = await supabase
+    .from("employers")
+    .select("id")
+    .eq("owner_id", recruiterUserId);
+
+  if (employerError || !employerRows?.length) return false;
+  const employerIds = employerRows.map((row) => row.id);
+
+  const { data: jobRows, error: jobError } = await supabase
+    .from("jobs")
+    .select("id")
+    .in("employer_id", employerIds);
+
+  if (jobError || !jobRows?.length) return false;
+  const jobIds = jobRows.map((row) => row.id);
+
+  const { data: candidateRows, error: candidateError } = await supabase
+    .from("candidates")
+    .select("id")
+    .eq("user_id", targetUserId);
+
+  if (candidateError || !candidateRows?.length) return false;
+  const candidateIds = candidateRows.map((row) => row.id);
+
   const { count } = await supabase
     .from("applications")
     .select("id", { count: "exact", head: true })
-    .in(
-      "job_id",
-      supabase
-        .from("jobs")
-        .select("id")
-        .in(
-          "employer_id",
-          supabase.from("employers").select("id").eq("owner_id", recruiterUserId)
-        )
-    )
-    .in(
-      "candidate_id",
-      supabase.from("candidates").select("id").eq("user_id", targetUserId)
-    );
+    .in("job_id", jobIds)
+    .in("candidate_id", candidateIds);
 
   return (count ?? 0) > 0;
 }
